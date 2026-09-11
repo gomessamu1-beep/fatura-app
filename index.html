@@ -304,8 +304,7 @@ if (authLoading) {
 
         // (O restante do código continua igual abaixo...)
         h('div', { className: 'app-nav' },
-          h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros"),
-          ... 
+          h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros"), 
         return h('div', { className: 'fatura-app', style: { maxWidth: '400px', marginTop: '80px' } },
           h('div', { className: 'form-card', style: { textAlign: 'center' } },
             h('h2', { style: { marginBottom: '20px', color: 'var(--ink)' } }, "Fatura App - Login"),
