@@ -260,9 +260,16 @@
 
       function toggleFaturaFechada(comp, e) {
         if (e) e.stopPropagation();
+        const jaEstaFechada = !!faturasFechadas[comp];
+        
+        // Se ela já está fechada e o usuário vai reabri-la, pede confirmação
+        if (jaEstaFechada) {
+          const confirmar = window.confirm("Tem certeza que deseja reabrir a fatura?");
+          if (!confirmar) return; // Se cancelar, não faz nada
+        }
+        
         setFaturasFechadas(prev => ({ ...prev, [comp]: !prev[comp] }));
       }
-
       function getCartao(id) { return cartoes.find(c => c.id === id) || null; }
       function getCategoria(id) { return categorias.find(cat => cat.id === id) || null; }
       function getSubcategoria(catId, subId) {
