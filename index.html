@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lançamentos do Cartão</title>
   
-  <!-- COLE ESTA LINHA AQUI NO <head> -->
- <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <!-- React & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -26,6 +26,7 @@
     const supabaseUrl = 'https://odvntvvcgdoerewytvum.supabase.co';
     const supabaseKey = 'sb_publishable_IssO3agsbMYN_V243zTbTg_Flm5TFZF';
     const supabaseClient = window.supabase && window.supabase.createClient ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
+
     function CreditCard({ size = 16 }) {
       return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
         h('rect', { width: '20', height: '14', x: '2', y: '5', rx: '2' }),
@@ -194,98 +195,69 @@
     const FECHADAS_KEY = "fatura-fechadas-v1";
     const CARD_COLORS = ["#3C5A73", "#6B4226", "#7A6C46", "#4B4453", "#2F5233", "#8C3B2E"];
 
-   function FaturaApp() {
-    const [session, setSession] = useState(null);
-    const [authLoading, setAuthLoading] = useState(true);
-    const [authEmail, setAuthEmail] = useState("");
-    const [authPassword, setAuthPassword] = useState("");
-    const [authError, setAuthError] = useState("");
+    function FaturaApp() {
+      const [session, setSession] = useState(null);
+      const [authLoading, setAuthLoading] = useState(true);
+      const [authEmail, setAuthEmail] = useState("");
+      const [authPassword, setAuthPassword] = useState("");
+      const [authError, setAuthError] = useState("");
 
-    const [purchases, setPurchases] = useState(() => JSON.parse(localStorage.getItem(PURCHASES_KEY)) || []);
-    const [cartoes, setCartoes] = useState(() => JSON.parse(localStorage.getItem(CARTOES_KEY)) || []);
-    const [categorias, setCategorias] = useState(() => JSON.parse(localStorage.getItem(CATEGORIAS_KEY)) || []);
-    const [deparaList, setDeparaList] = useState(() => JSON.parse(localStorage.getItem(DEPARA_KEY)) || []);
-    const [faturasFechadas, setFaturasFechadas] = useState(() => JSON.parse(localStorage.getItem(FECHADAS_KEY)) || {});
+      const [purchases, setPurchases] = useState(() => JSON.parse(localStorage.getItem(PURCHASES_KEY) || "[]"));
+      const [cartoes, setCartoes] = useState(() => JSON.parse(localStorage.getItem(CARTOES_KEY) || "[]"));
+      const [categorias, setCategorias] = useState(() => JSON.parse(localStorage.getItem(CATEGORIAS_KEY) || "[]"));
+      const [deparaList, setDeparaList] = useState(() => JSON.parse(localStorage.getItem(DEPARA_KEY) || "[]"));
+      const [faturasFechadas, setFaturasFechadas] = useState(() => JSON.parse(localStorage.getItem(FECHADAS_KEY) || "{}"));
+      
+      const [screen, setScreen] = useState("cadastros");
+      const [cadastroTab, setCadastroTab] = useState("cartoes");
+      const [month, setMonth] = useState(currentMonth());
+      
+      const [modalOpen, setModalOpen] = useState(false);
+      const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
+      const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, title: "", message: "" });
+      const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
+      const [batchConfirmText, setBatchConfirmText] = useState("");
+      
+      const [selectedIds, setSelectedIds] = useState([]);
+      const [isImportingPDF, setIsImportingPDF] = useState(false);
+      const [isImportingPlanilha, setIsImportingPlanilha] = useState(false);
+      
+      const fileInputRef = useRef(null);
+      const planilhaInputRef = useRef(null);
+      const [editingId, setEditingId] = useState(null);
 
-    const [screen, setScreen] = useState("cadastros");
-    const [cadastroTab, setCadastroTab] = useState("cartoes");
-    const [month, setMonth] = useState(currentMonth());
+      const [txtCategoriasContent, setTxtCategoriasContent] = useState("");
+      const txtInputRef = useRef(null);
 
-    const [modalOpen, setModalOpen] = useState(false);
-    const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
-    const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null });
-    const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
-    const [batchConfirmText, setBatchConfirmText] = useState("");
+      const [editingCartaoId, setEditingCartaoId] = useState(null);
+      const [novoCartaoNome, setNovoCartaoNome] = useState("");
+      const [novoCartaoBanco, setNovoCartaoBanco] = useState("033");
+      const [novoCartaoCor, setNovoCartaoCor] = useState(CARD_COLORS[0]);
+      const [cartaoError, setCartaoError] = useState("");
 
-    const [selectedIds, setSelectedIds] = useState([]);
-    const [isImportingPDF, setIsImportingPDF] = useState(false);
-    const [isImportingPlanilha, setIsImportingPlanilha] = useState(false);
+      const [novoDeparaFatura, setNovoDeparaFatura] = useState("");
+      const [novoDeparaImportacao, setNovoDeparaImportacao] = useState("");
+      const [novoDeparaCategoriaId, setNovoDeparaCategoriaId] = useState("");
+      const [novoDeparaSubcategoriaId, setNovoDeparaSubcategoriaId] = useState("");
+      const [deparaError, setDeparaError] = useState("");
 
-    const fileInputRef = useRef(null);
-    const planilhaInputRef = useRef(null);
-    const [editingId, setEditingId] = useState(null);
+      const [descricao, setDescricao] = useState("");
+      const [valorTotal, setValorTotal] = useState("");
+      const [valorParcelaInput, setValorParcelaInput] = useState("");
+      const [dataLancamento, setDataLancamento] = useState(currentDate());
+      const [faturaMes, setFaturaMes] = useState(currentMonth());
+      const [parcelas, setParcelas] = useState("1");
+      const [parcelaAtual, setParcelaAtual] = useState("1");
+      const [cartaoId, setCartaoId] = useState("");
+      const [categoriaId, setCategoriaId] = useState("");
+      const [subcategoriaId, setSubcategoriaId] = useState("");
+      const [formError, setFormError] = useState("");
 
-    useEffect(() => {
-        supabaseClient.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setAuthLoading(false);
-        });
+      const [novaCategoriaNome, setNovaCategoriaNome] = useState("");
+      const [novaCategoriaCor, setNovaCategoriaCor] = useState(CARD_COLORS[0]);
+      const [subInputs, setSubInputs] = useState({});
 
-        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
-
-    async function handleLogin(e) {
-        e.preventDefault();
-        setAuthError("");
-        const { error } = await supabaseClient.auth.signInWithPassword({
-            email: authEmail,
-            password: authPassword,
-        });
-        if (error) {
-            setAuthError("Erro ao entrar: " + error.message);
-        }
-    }
-
-    async function handleLogout() {
-        await supabaseClient.auth.signOut();
-    }
-
-    if (authLoading) {
-        return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Carregando sistema...");
-    }
-
-    if (!session) {
-        return h('div', { className: 'fatura-app' },
-            h('div', { className: 'app-nav' },
-                h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros")
-            ),
-            h('div', { style: { maxWidth: '400px', margin: '80px auto 0 auto' } },
-                h('div', { className: 'form-card', style: { textAlign: 'center' } },
-                    h('h2', { style: { marginBottom: '20px', color: 'var(--ink)' } }, "Fatura App - Login"),
-                    h('form', { onSubmit: handleLogin, style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-                        h('div', { className: 'field', style: { textAlign: 'left' } },
-                            h('label', null, "E-mail"),
-                            h('input', { type: 'email', value: authEmail, onChange: e => setAuthEmail(e.target.value), required: true })
-                        ),
-                        h('div', { className: 'field', style: { textAlign: 'left' } },
-                            h('label', null, "Senha"),
-                            h('input', { type: 'password', value: authPassword, onChange: e => setAuthPassword(e.target.value), required: true })
-                        ),
-                        authError && h('div', { style: { color: 'var(--red)', fontSize: '13px' } }, authError),
-                        h('button', { type: 'submit', className: 'primary', style: { justifyContent: 'center', marginTop: '10px' } }, "Entrar na Conta")
-                    )
-                )
-            )
-        );
-    }
-
-    // O restante do seu componente continua aqui embaixo...
-} 
- 
+      useEffect(() => {
         if (!supabaseClient) {
           setAuthLoading(false);
           return;
@@ -298,19 +270,10 @@
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
           setSession(session);
         });
-useEffect(() => {
-        supabaseClient.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setAuthLoading(false);
-        });
-
-        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-        });
 
         return () => subscription.unsubscribe();
-    }, []);
-     
+      }, []);
+
       async function handleLogin(e) {
         e.preventDefault();
         setAuthError("");
@@ -326,12 +289,36 @@ useEffect(() => {
       async function handleLogout() {
         await supabaseClient.auth.signOut();
       }
-      
+
       useEffect(() => { localStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases)); }, [purchases]);
       useEffect(() => { localStorage.setItem(CARTOES_KEY, JSON.stringify(cartoes)); }, [cartoes]);
       useEffect(() => { localStorage.setItem(CATEGORIAS_KEY, JSON.stringify(categorias)); }, [categorias]);
       useEffect(() => { localStorage.setItem(DEPARA_KEY, JSON.stringify(deparaList)); }, [deparaList]);
       useEffect(() => { localStorage.setItem(FECHADAS_KEY, JSON.stringify(faturasFechadas)); }, [faturasFechadas]);
+
+      if (authLoading) {
+        return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Carregando sistema...");
+      }
+
+      if (!session) {
+        return h('div', { className: 'fatura-app', style: { maxWidth: '400px', marginTop: '80px' } },
+          h('div', { className: 'form-card', style: { textAlign: 'center' } },
+            h('h2', { style: { marginBottom: '20px', color: 'var(--ink)' } }, "Fatura App - Login"),
+            h('form', { onSubmit: handleLogin, style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+              h('div', { className: 'field', style: { textAlign: 'left' } },
+                h('label', null, "E-mail"),
+                h('input', { type: 'email', value: authEmail, onChange: e => setAuthEmail(e.target.value), required: true })
+              ),
+              h('div', { className: 'field', style: { textAlign: 'left' } },
+                h('label', null, "Senha"),
+                h('input', { type: 'password', value: authPassword, onChange: e => setAuthPassword(e.target.value), required: true })
+              ),
+              authError && h('div', { style: { color: 'var(--red)', fontSize: '13px' } }, authError),
+              h('button', { type: 'submit', className: 'primary', style: { justifyContent: 'center', marginTop: '10px' } }, "Entrar na Conta")
+            )
+          )
+        );
+      }
 
       function isFaturaFechada(comp) { return !!faturasFechadas[comp]; }
 
@@ -343,8 +330,10 @@ useEffect(() => {
           const confirmar = window.confirm("Tem certeza que deseja reabrir a fatura?");
           if (!confirmar) return;
         }
-           setFaturasFechadas(prev => ({ ...prev, [comp]: !prev[comp] }));
+        
+        setFaturasFechadas(prev => ({ ...prev, [comp]: !prev[comp] }));
       }
+
       function getCartao(id) { return cartoes.find(c => c.id === id) || null; }
       function getCategoria(id) { return categorias.find(cat => cat.id === id) || null; }
       function getSubcategoria(catId, subId) {
@@ -416,7 +405,8 @@ useEffect(() => {
           setCartoes(prev => [...prev, { id: uid(), nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor }]);
         }
         setCartaoModalOpen(false);
-      }    
+      }
+
       function handleAddDepara(e) {
         e.preventDefault();
         setDeparaError("");
@@ -894,6 +884,10 @@ useEffect(() => {
           }
         `),
 
+        session && h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' } },
+          h('button', { type: 'button', className: 'action-btn', onClick: handleLogout, style: { fontSize: '13px', padding: '4px 12px', color: 'var(--red)', borderColor: 'var(--red)', background: '#fff' } }, "Sair 🚪")
+        ),
+
         h('div', { className: 'app-nav' },
           h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros"),
           h('button', { className: screen === "lancamentos" ? "active" : "", onClick: () => setScreen("lancamentos") }, "Lançamentos"),
@@ -911,7 +905,7 @@ useEffect(() => {
           cadastroTab === "cartoes" && h(React.Fragment, null,
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
               h('div', { style: { fontSize: 14, color: 'var(--ink-soft)' } }, "Meus Cartões"),
-              h('button', { type: 'button', className: 'primary', onClick: () => { setEditingCartaoId(null); setNovoCartaoNome(""); setCartaoModalOpen(true); } }, h(Plus), " Novo Cartão")
+              h('button', { type: 'button', className: 'primary', onClick: () => { setEditingCartaoId(null); setNovoCartaoNome(""); setNovoCartaoBanco("033"); setNovoCartaoCor(CARD_COLORS[0]); setCartaoModalOpen(true); } }, h(Plus), " Novo Cartão")
             ),
             h('div', { className: 'list-vertical', style: { marginTop: 12 } },
               cartoes.map((c) => h('div', { className: 'list-item', key: c.id },
@@ -921,7 +915,16 @@ useEffect(() => {
                     h('span', { className: 'dot', style: { background: c.cor } }),
                     h('span', null, c.nome)
                   ),
-                  h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'cartao', id: c.id, title: 'Excluir Cartão', message: `Excluir ${c.nome}?` }) }, h(Trash2, { size: 14 }))
+                  h('div', { style: { display: 'flex', gap: 6 } },
+                    h('button', { type: 'button', className: 'action-btn', onClick: () => {
+                      setEditingCartaoId(c.id);
+                      setNovoCartaoNome(c.nome);
+                      setNovoCartaoBanco(c.bancoCode || "033");
+                      setNovoCartaoCor(c.cor || CARD_COLORS[0]);
+                      setCartaoModalOpen(true);
+                    } }, h(Pencil, { size: 14 })),
+                    h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'cartao', id: c.id, title: 'Excluir Cartão', message: `Excluir ${c.nome}?` }) }, h(Trash2, { size: 14 }))
+                  )
                 )
               ))
             )
@@ -1246,7 +1249,7 @@ useEffect(() => {
 
         cartaoModalOpen && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
-            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Novo Cartão"),
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, editingCartaoId ? "Editar Cartão" : "Novo Cartão"),
             h('form', { onSubmit: handleSaveCartao, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
               h('div', { className: 'field' }, h('label', null, "Nome *"), h('input', { type: 'text', value: novoCartaoNome, onChange: e => setNovoCartaoNome(e.target.value), required: true })),
               h('div', { className: 'field' }, h('label', null, "Banco"), h('select', { value: novoCartaoBanco, onChange: e => setNovoCartaoBanco(e.target.value) }, BANCOS_FEBRABAN.map(b => h('option', { key: b.code, value: b.code }, b.name)))),
