@@ -194,105 +194,71 @@
     const FECHADAS_KEY = "fatura-fechadas-v1";
     const CARD_COLORS = ["#3C5A73", "#6B4226", "#7A6C46", "#4B4453", "#2F5233", "#8C3B2E"];
 
-    function FaturaApp() {
-      const [session, setSession] = useState(null);
-      const [authLoading, setAuthLoading] = useState(true);
-      const [authEmail, setAuthEmail] = useState("");
-      const [authPassword, setAuthPassword] = useState("");
-      const [authError, setAuthError] = useState("");
+   function FaturaApp() {
+    const [session, setSession] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [authEmail, setAuthEmail] = useState("");
+    const [authPassword, setAuthPassword] = useState("");
+    const [authError, setAuthError] = useState("");
 
-      const [purchases, setPurchases] = useState(() => JSON.parse(localStorage.getItem(PURCHASES_KEY) || "[]"));
-      const [cartoes, setCartoes] = useState(() => JSON.parse(localStorage.getItem(CARTOES_KEY) || "[]"));
-      const [categorias, setCategorias] = useState(() => JSON.parse(localStorage.getItem(CATEGORIAS_KEY) || "[]"));
-      const [deparaList, setDeparaList] = useState(() => JSON.parse(localStorage.getItem(DEPARA_KEY) || "[]"));
-      const [faturasFechadas, setFaturasFechadas] = useState(() => JSON.parse(localStorage.getItem(FECHADAS_KEY) || "{}"));
-      
-      const [screen, setScreen] = useState("cadastros");
-      const [cadastroTab, setCadastroTab] = useState("cartoes");
-      const [month, setMonth] = useState(currentMonth());
-      
-      const [modalOpen, setModalOpen] = useState(false);
-      const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
-      const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, title: "", message: "" });
-      const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
-      const [batchConfirmText, setBatchConfirmText] = useState("");
-      
-      const [selectedIds, setSelectedIds] = useState([]);
-      const [isImportingPDF, setIsImportingPDF] = useState(false);
-      const [isImportingPlanilha, setIsImportingPlanilha] = useState(false);
-      
-      const fileInputRef = useRef(null);
-      const planilhaInputRef = useRef(null);
-      const [editingId, setEditingId] = useState(null);
+    const [purchases, setPurchases] = useState(() => JSON.parse(localStorage.getItem(PURCHASES_KEY)) || []);
+    const [cartoes, setCartoes] = useState(() => JSON.parse(localStorage.getItem(CARTOES_KEY)) || []);
+    const [categorias, setCategorias] = useState(() => JSON.parse(localStorage.getItem(CATEGORIAS_KEY)) || []);
+    const [deparaList, setDeparaList] = useState(() => JSON.parse(localStorage.getItem(DEPARA_KEY)) || []);
+    const [faturasFechadas, setFaturasFechadas] = useState(() => JSON.parse(localStorage.getItem(FECHADAS_KEY)) || {});
 
-      const [txtCategoriasContent, setTxtCategoriasContent] = useState("");
-      const txtInputRef = useRef(null);
+    const [screen, setScreen] = useState("cadastros");
+    const [cadastroTab, setCadastroTab] = useState("cartoes");
+    const [month, setMonth] = useState(currentMonth());
 
-      const [editingCartaoId, setEditingCartaoId] = useState(null);
-      const [novoCartaoNome, setNovoCartaoNome] = useState("");
-      const [novoCartaoBanco, setNovoCartaoBanco] = useState("033");
-      const [novoCartaoCor, setNovoCartaoCor] = useState(CARD_COLORS[0]);
-      const [cartaoError, setCartaoError] = useState("");
+    const [modalOpen, setModalOpen] = useState(false);
+    const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
+    const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null });
+    const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
+    const [batchConfirmText, setBatchConfirmText] = useState("");
 
-      const [novoDeparaFatura, setNovoDeparaFatura] = useState("");
-      const [novoDeparaImportacao, setNovoDeparaImportacao] = useState("");
-      const [novoDeparaCategoriaId, setNovoDeparaCategoriaId] = useState("");
-      const [novoDeparaSubcategoriaId, setNovoDeparaSubcategoriaId] = useState("");
-      const [deparaError, setDeparaError] = useState("");
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [isImportingPDF, setIsImportingPDF] = useState(false);
+    const [isImportingPlanilha, setIsImportingPlanilha] = useState(false);
 
-      const [descricao, setDescricao] = useState("");
-      const [valorTotal, setValorTotal] = useState("");
-      const [valorParcelaInput, setValorParcelaInput] = useState("");
-      const [dataLancamento, setDataLancamento] = useState(currentDate());
-      const [faturaMes, setFaturaMes] = useState(currentMonth());
-      const [parcelas, setParcelas] = useState("1");
-      const [parcelaAtual, setParcelaAtual] = useState("1");
-      const [cartaoId, setCartaoId] = useState("");
-      const [categoriaId, setCategoriaId] = useState("");
-      const [subcategoriaId, setSubcategoriaId] = useState("");
-      const [formError, setFormError] = useState("");
+    const fileInputRef = useRef(null);
+    const planilhaInputRef = useRef(null);
+    const [editingId, setEditingId] = useState(null);
 
-      const [novaCategoriaNome, setNovaCategoriaNome] = useState("");
-      const [novaCategoriaCor, setNovaCategoriaCor] = useState(CARD_COLORS[0]);
-      const [subInputs, setSubInputs] = useState({});
-
-
-useEffect(() => {
-if (!supabaseClient) {
-          setAuthLoading(false);
-          return;
-        }
+    useEffect(() => {
         supabaseClient.auth.getSession().then(({ data: { session } }) => {
-          setSession(session);
-          setAuthLoading(false);
+            setSession(session);
+            setAuthLoading(false);
         });
 
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-          setSession(session);
+            setSession(session);
         });
 
         return () => subscription.unsubscribe();
-      }, []);
+    }, []);
 
-      async function handleLogin(e) {
+    async function handleLogin(e) {
         e.preventDefault();
         setAuthError("");
         const { error } = await supabaseClient.auth.signInWithPassword({
-          email: authEmail,
-          password: authPassword,
+            email: authEmail,
+            password: authPassword,
         });
         if (error) {
-          setAuthError("Erro ao entrar: " + error.message);
+            setAuthError("Erro ao entrar: " + error.message);
         }
-      }
+    }
 
-      async function handleLogout() {
+    async function handleLogout() {
         await supabaseClient.auth.signOut();
-      }
-if (authLoading) {
+    }
+
+    if (authLoading) {
         return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Carregando sistema...");
-      }
-if (!session) {
+    }
+
+    if (!session) {
         return h('div', { className: 'fatura-app' },
             h('div', { className: 'app-nav' },
                 h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros")
@@ -314,9 +280,11 @@ if (!session) {
                     )
                 )
             )
-        )
+        );
     }
-      
+
+    // O restante do seu componente continua aqui embaixo...
+} 
  
         if (!supabaseClient) {
           setAuthLoading(false);
