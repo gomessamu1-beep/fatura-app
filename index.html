@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lançamentos do Cartão</title>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- React & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -22,9 +24,8 @@
     const { createElement: h, useState, useEffect, useMemo, useRef } = React;
     const supabaseUrl = 'https://odvntvvcgdoerewytvum.supabase.co';
     const supabaseKey = 'sb_publishable_IssO3agsbMYN_V243zTbTg_Flm5TFZF';
-    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+    const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-      
     function CreditCard({ size = 16 }) {
       return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
         h('rect', { width: '20', height: '14', x: '2', y: '5', rx: '2' }),
@@ -186,11 +187,6 @@
       return Math.random().toString(36).slice(2, 10);
     }
 
-    const storage = {
-      get(key) { return localStorage.getItem(key); },
-      set(key, val) { localStorage.setItem(key, val); }
-    };
-
     const PURCHASES_KEY = "fatura-purchases-v1";
     const CARTOES_KEY = "fatura-cartoes-v1";
     const CATEGORIAS_KEY = "fatura-categorias-v1";
@@ -199,11 +195,11 @@
     const CARD_COLORS = ["#3C5A73", "#6B4226", "#7A6C46", "#4B4453", "#2F5233", "#8C3B2E"];
 
     function FaturaApp() {
-      const [purchases, setPurchases] = useState(() => JSON.parse(storage.get(PURCHASES_KEY) || "[]"));
-      const [cartoes, setCartoes] = useState(() => JSON.parse(storage.get(CARTOES_KEY) || "[]"));
-      const [categorias, setCategorias] = useState(() => JSON.parse(storage.get(CATEGORIAS_KEY) || "[]"));
-      const [deparaList, setDeparaList] = useState(() => JSON.parse(storage.get(DEPARA_KEY) || "[]"));
-      const [faturasFechadas, setFaturasFechadas] = useState(() => JSON.parse(storage.get(FECHADAS_KEY) || "{}"));
+      const [purchases, setPurchases] = useState(() => JSON.parse(localStorage.getItem(PURCHASES_KEY) || "[]"));
+      const [cartoes, setCartoes] = useState(() => JSON.parse(localStorage.getItem(CARTOES_KEY) || "[]"));
+      const [categorias, setCategorias] = useState(() => JSON.parse(localStorage.getItem(CATEGORIAS_KEY) || "[]"));
+      const [deparaList, setDeparaList] = useState(() => JSON.parse(localStorage.getItem(DEPARA_KEY) || "[]"));
+      const [faturasFechadas, setFaturasFechadas] = useState(() => JSON.parse(localStorage.getItem(FECHADAS_KEY) || "{}"));
       
       const [screen, setScreen] = useState("cadastros");
       const [cadastroTab, setCadastroTab] = useState("cartoes");
@@ -223,7 +219,6 @@
       const planilhaInputRef = useRef(null);
       const [editingId, setEditingId] = useState(null);
 
-      // Importar TXT de Categorias
       const [txtCategoriasContent, setTxtCategoriasContent] = useState("");
       const txtInputRef = useRef(null);
 
@@ -255,11 +250,11 @@
       const [novaCategoriaCor, setNovaCategoriaCor] = useState(CARD_COLORS[0]);
       const [subInputs, setSubInputs] = useState({});
 
-      useEffect(() => { storage.set(PURCHASES_KEY, JSON.stringify(purchases)); }, [purchases]);
-      useEffect(() => { storage.set(CARTOES_KEY, JSON.stringify(cartoes)); }, [cartoes]);
-      useEffect(() => { storage.set(CATEGORIAS_KEY, JSON.stringify(categorias)); }, [categorias]);
-      useEffect(() => { storage.set(DEPARA_KEY, JSON.stringify(deparaList)); }, [deparaList]);
-      useEffect(() => { storage.set(FECHADAS_KEY, JSON.stringify(faturasFechadas)); }, [faturasFechadas]);
+      useEffect(() => { localStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases)); }, [purchases]);
+      useEffect(() => { localStorage.setItem(CARTOES_KEY, JSON.stringify(cartoes)); }, [cartoes]);
+      useEffect(() => { localStorage.setItem(CATEGORIAS_KEY, JSON.stringify(categorias)); }, [categorias]);
+      useEffect(() => { localStorage.setItem(DEPARA_KEY, JSON.stringify(deparaList)); }, [deparaList]);
+      useEffect(() => { localStorage.setItem(FECHADAS_KEY, JSON.stringify(faturasFechadas)); }, [faturasFechadas]);
 
       function isFaturaFechada(comp) { return !!faturasFechadas[comp]; }
 
@@ -620,7 +615,6 @@
             return;
           }
 
-          // Detectar separador (; ou ,)
           const header = lines[0];
           const separator = header.includes(";") ? ";" : ",";
 
@@ -632,11 +626,9 @@
             const line = lines[i].trim();
             if (!line) continue;
 
-            // Divide respeitando aspas simples ou duplas básicas se houver
             const cols = line.split(separator).map(c => c.replace(/^["']|["']$/g, "").trim());
             if (cols.length < 2) continue;
 
-            // Esperado padrão exportado: Data;Descrição;Cartão;Categoria;Subcategoria;Parcela;Valor Parcela;Valor Total
             const dataStr = cols[0] || `${currentYear}-01-01`;
             let dataIso = currentDate();
             if (dataStr.includes("/")) {
