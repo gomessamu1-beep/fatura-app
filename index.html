@@ -307,22 +307,45 @@
       }
 
       async function handleSaveCartao(e) {
-        e.preventDefault();
-        setCartaoError("");
-        const nome = novoCartaoNome.trim();
-        if (!nome) { setCartaoError("Dê um nome ao cartão."); return; }
-        
-        setIsSyncing(true);
-        if (editingCartaoId) {
-          const { error } = await supabaseClient.from('cartoes').update({ nome, banco_code: novoCartaoBanco, cor: novoCartaoCor }).eq('id', editingCartaoId);
-          if (!error) setCartoes(prev => prev.map(c => c.id === editingCartaoId ? { ...c, nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor } : c));
-        } else {
-          const { data, error } = await supabaseClient.from('cartoes').insert([{ nome, banco_code: novoCartaoBanco, cor: novoCartaoCor, user_id: session.user.id }]).select();
-          if (data) setCartoes(prev => [...prev, { id: data[0].id, nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor }]);
-        }
-        setIsSyncing(false);
-        setCartaoModalOpen(false);
-      }
+  e.preventDefault();
+  setCartaoError("");
+  const nome = novoCartaoNome.trim();
+  if (!nome) { setCartaoError("Dê um nome ao cartão."); return; }
+
+  setIsSyncing(true);
+  
+  if (editingCartaoId) {
+    // Se estiver editando um cartão existente
+    const { error } = await supabaseClient
+      .from('cartoes')
+      .update({ nome, banco_code: novoCartaoBanco, cor: novoCartaoCor })
+      .eq('id', editingCartaoId);
+      
+    if (error) {
+      console.error("Erro ao atualizar cartão:", error);
+      alert("Erro ao atualizar: " + error.message);
+    } else {
+      setCartoes(prev => prev.map(c => c.id === editingCartaoId ? { ...c, nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor } : c));
+      setCartaoModalOpen(false);
+    }
+  } else {
+    // Se estiver criando um NOVO cartão (garantindo o user_id aqui)
+    const { data, error } = await supabaseClient
+      .from('cartoes')
+      .insert([{ nome, banco_code: novoCartaoBanco, cor: novoCartaoCor, user_id: session.user.id }])
+      .select();
+      
+    if (error) {
+      console.error("Erro ao salvar cartão:", error);
+      alert("Erro ao salvar: " + error.message);
+    } else if (data) {
+      setCartoes(prev => [...prev, { id: data[0].id, nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor }]);
+      setCartaoModalOpen(false);
+    }
+  }
+  
+  setIsSyncing(false);
+}
 
       async function handleAddDepara(e) {
         e.preventDefault();
