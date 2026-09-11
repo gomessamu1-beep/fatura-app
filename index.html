@@ -1,27 +1,30 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lançamentos do Cartão - Supabase</title>
-  <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <!-- PDF.js para leitura de PDF no navegador -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <!-- Supabase JS -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    if (window.pdfjsLib) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    }
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>fatura-app</title>
+    <!-- Inclua aqui o restante das bibliotecas e estilos originais do seu projeto -->
 </head>
-<body style="margin: 0; background-color: #ECE8DD;">
-  <div id="root"></div>
+<body>
+    <div id="root"></div>
 
-  <script>
-    const { createElement: h, useState, useEffect, useMemo, useRef } = React;
+    <!-- Bibliotecas do Supabase e React -->
+    <script src="https://cdn.jsdelivr.5net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const supabaseUrl = 'https://odvntvvcgdoerewytvum.supabase.co';
+        const supabaseKey = 'COLE_SUA_CHAVE_ANON_AQUI'; // Substitua pela sua chave anon/legacy clássica
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        // O restante do seu script original continua daqui para baixo...
+    </script>
+</body>
+</html> 
+         const { createElement: h, useState, useEffect, useMemo, useRef } = React;
 
     const supabaseUrl = 'https://odvntvvcgdoerewytvum.supabase.co';
     const supabaseKey = 'sb_publishable_IssO3agsbMYN_V243zTbTg_Flm5TFZF';
