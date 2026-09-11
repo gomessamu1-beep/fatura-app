@@ -258,6 +258,108 @@
       const [novaCategoriaCor, setNovaCategoriaCor] = useState(CARD_COLORS[0]);
       const [subInputs, setSubInputs] = useState({});
 
+
+useEffect(() => {
+if (!supabaseClient) {
+          setAuthLoading(false);
+          return;
+        }
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+          setSession(session);
+          setAuthLoading(false);
+        });
+
+        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+          setSession(session);
+        });
+
+        return () => subscription.unsubscribe();
+      }, []);
+
+      async function handleLogin(e) {
+        e.preventDefault();
+        setAuthError("");
+        const { error } = await supabaseClient.auth.signInWithPassword({
+          email: authEmail,
+          password: authPassword,
+        });
+        if (error) {
+          setAuthError("Erro ao entrar: " + error.message);
+        }
+      }
+
+      async function handleLogout() {
+        await supabaseClient.auth.signOut();
+      }
+if (authLoading) {
+        return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Carregando sistema...");
+      }
+
+      if (!session) {
+        return h('div', { className: 'fatura-app' },
+        h('style', null, `...`),
+
+        // ADICIONE ESTE BLOCO LOGO AQUI NO TOPO:
+        session && h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' } },
+          h('button', { type: 'button', className: 'action-btn', onClick: handleLogout, style: { fontSize: '13px', padding: '4px 12px', color: 'var(--red)', borderColor: 'var(--red)', background: '#fff' } }, "Sair 🚪")
+        ),
+
+        // (O restante do código continua igual abaixo...)
+        h('div', { className: 'app-nav' },
+          h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros"),
+          ... 
+        return h('div', { className: 'fatura-app', style: { maxWidth: '400px', marginTop: '80px' } },
+          h('div', { className: 'form-card', style: { textAlign: 'center' } },
+            h('h2', { style: { marginBottom: '20px', color: 'var(--ink)' } }, "Fatura App - Login"),
+            h('form', { onSubmit: handleLogin, style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+              h('div', { className: 'field', style: { textAlign: 'left' } },
+                h('label', null, "E-mail"),
+                h('input', { type: 'email', value: authEmail, onChange: e => setAuthEmail(e.target.value), required: true })
+              ),
+              h('div', { className: 'field', style: { textAlign: 'left' } },
+                h('label', null, "Senha"),
+                h('input', { type: 'password', value: authPassword, onChange: e => setAuthPassword(e.target.value), required: true })
+              ),
+              authError && h('div', { style: { color: 'var(--red)', fontSize: '13px' } }, authError),
+              h('button', { type: 'submit', className: 'primary', style: { justifyContent: 'center', marginTop: '10px' } }, "Entrar na Conta")
+            )
+          )
+        );
+      }
+      
+ 
+        if (!supabaseClient) {
+          setAuthLoading(false);
+          return;
+        }
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+          setSession(session);
+          setAuthLoading(false);
+        });
+
+        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+          setSession(session);
+        });
+
+        return () => subscription.unsubscribe();
+      }, []);
+
+      async function handleLogin(e) {
+        e.preventDefault();
+        setAuthError("");
+        const { error } = await supabaseClient.auth.signInWithPassword({
+          email: authEmail,
+          password: authPassword,
+        });
+        if (error) {
+          setAuthError("Erro ao entrar: " + error.message);
+        }
+      }
+
+      async function handleLogout() {
+        await supabaseClient.auth.signOut();
+      }
+      
       useEffect(() => { localStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases)); }, [purchases]);
       useEffect(() => { localStorage.setItem(CARTOES_KEY, JSON.stringify(cartoes)); }, [cartoes]);
       useEffect(() => { localStorage.setItem(CATEGORIAS_KEY, JSON.stringify(categorias)); }, [categorias]);
