@@ -202,8 +202,6 @@
       const [authError, setAuthError] = useState("");
 
       const [purchases, setPurchases] = useState(() => JSON.parse(localStorage.getItem(PURCHASES_KEY) || "[]"));
-      
-      const [purchases, setPurchases] = useState(() => JSON.parse(localStorage.getItem(PURCHASES_KEY) || "[]"));
       const [cartoes, setCartoes] = useState(() => JSON.parse(localStorage.getItem(CARTOES_KEY) || "[]"));
       const [categorias, setCategorias] = useState(() => JSON.parse(localStorage.getItem(CATEGORIAS_KEY) || "[]"));
       const [deparaList, setDeparaList] = useState(() => JSON.parse(localStorage.getItem(DEPARA_KEY) || "[]"));
