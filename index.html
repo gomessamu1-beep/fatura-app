@@ -356,7 +356,7 @@
         const nome = (subInputs[catId] || "").trim();
         if (!nome) return;
         setIsSyncing(true);
-        const { data } = await supabaseClient.from('subcategorias').insert([{ categoria_id: catId, nome }]).select();
+        const { data, error } = await supabaseClient.from('subcategorias').insert([{ categoria_id: catId, nome, user_id: session.user.id }]).select();
         if (data) {
           setCategorias(prev => prev.map(c => c.id !== catId ? c : { ...c, subcategorias: [...c.subcategorias, { id: data[0].id, nome }] }));
           setSubInputs(prev => ({ ...prev, [catId]: "" }));
