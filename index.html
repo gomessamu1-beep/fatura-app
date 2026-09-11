@@ -292,17 +292,11 @@ if (!supabaseClient) {
 if (authLoading) {
         return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Carregando sistema...");
       }
-
-      if (!session) {
-        return h('div', { className: 'fatura-app' },
-            h('div', { className: 'app-nav' },
-                h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros")
-           if (!session) {
+if (!session) {
         return h('div', { className: 'fatura-app' },
             h('div', { className: 'app-nav' },
                 h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros")
             ),
-            h('div', { style: { maxWidth: '400px', margin: '80px auto 0 auto' } },
                 h('div', { className: 'form-card', style: { textAlign: 'center' } },
                     h('h2', { style: { marginBottom: '20px', color: 'var(--ink)' } }, "Fatura App - Login"),
                     h('form', { onSubmit: handleLogin, style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
