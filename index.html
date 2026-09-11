@@ -297,26 +297,30 @@ if (authLoading) {
         return h('div', { className: 'fatura-app' },
             h('div', { className: 'app-nav' },
                 h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros")
+           if (!session) {
+        return h('div', { className: 'fatura-app' },
+            h('div', { className: 'app-nav' },
+                h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros")
             ),
-            h('div', { style: { maxWidth: '400px', marginTop: '80px', margin: '80px auto 0 auto' } },
+            h('div', { style: { maxWidth: '400px', margin: '80px auto 0 auto' } },
                 h('div', { className: 'form-card', style: { textAlign: 'center' } },
                     h('h2', { style: { marginBottom: '20px', color: 'var(--ink)' } }, "Fatura App - Login"),
                     h('form', { onSubmit: handleLogin, style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-            h('h2', { style: { marginBottom: '20px', color: 'var(--ink)' } }, "Fatura App - Login"),
-            h('form', { onSubmit: handleLogin, style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-              h('div', { className: 'field', style: { textAlign: 'left' } },
-                h('label', null, "E-mail"),
-                h('input', { type: 'email', value: authEmail, onChange: e => setAuthEmail(e.target.value), required: true })
-              ),
-              h('div', { className: 'field', style: { textAlign: 'left' } },
-                h('label', null, "Senha"),
-                h('input', { type: 'password', value: authPassword, onChange: e => setAuthPassword(e.target.value), required: true })
-              ),
-              authError && h('div', { style: { color: 'var(--red)', fontSize: '13px' } }, authError),
-              h('button', { type: 'submit', className: 'primary', style: { justifyContent: 'center', marginTop: '10px' } }, "Entrar na Conta")
+                        h('div', { className: 'field', style: { textAlign: 'left' } },
+                            h('label', null, "E-mail"),
+                            h('input', { type: 'email', value: authEmail, onChange: e => setAuthEmail(e.target.value), required: true })
+                        ),
+                        h('div', { className: 'field', style: { textAlign: 'left' } },
+                            h('label', null, "Senha"),
+                            h('input', { type: 'password', value: authPassword, onChange: e => setAuthPassword(e.target.value), required: true })
+                        ),
+                        authError && h('div', { style: { color: 'var(--red)', fontSize: '13px' } }, authError),
+                        h('button', { type: 'submit', className: 'primary', style: { justifyContent: 'center', marginTop: '10px' } }, "Entrar na Conta")
+                    )
+                )
             )
-          )
         );
+    }        );
       }
       
  
