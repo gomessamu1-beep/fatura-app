@@ -188,26 +188,21 @@
       return Math.random().toString(36).slice(2, 10);
     }
 
-    const PURCHASES_KEY = "fatura-purchases-v1";
-    const CARTOES_KEY = "fatura-cartoes-v1";
-    const CATEGORIAS_KEY = "fatura-categorias-v1";
-    const DEPARA_KEY = "fatura-depara-v1";
-    const FECHADAS_KEY = "fatura-fechadas-v1";
     const CARD_COLORS = ["#3C5A73", "#6B4226", "#7A6C46", "#4B4453", "#2F5233", "#8C3B2E"];
 
     function FaturaApp() {
-      // 1. TODOS OS HOOKS DEVEM FICAR AQUI NO TOPO, ANTES DE QUALQUER IF
       const [session, setSession] = useState(null);
       const [authLoading, setAuthLoading] = useState(true);
+      const [dataLoading, setDataLoading] = useState(false);
       const [authEmail, setAuthEmail] = useState("");
       const [authPassword, setAuthPassword] = useState("");
       const [authError, setAuthError] = useState("");
 
-      const [purchases, setPurchases] = useState(() => JSON.parse(localStorage.getItem(PURCHASES_KEY) || "[]"));
-      const [cartoes, setCartoes] = useState(() => JSON.parse(localStorage.getItem(CARTOES_KEY) || "[]"));
-      const [categorias, setCategorias] = useState(() => JSON.parse(localStorage.getItem(CATEGORIAS_KEY) || "[]"));
-      const [deparaList, setDeparaList] = useState(() => JSON.parse(localStorage.getItem(DEPARA_KEY) || "[]"));
-      const [faturasFechadas, setFaturasFechadas] = useState(() => JSON.parse(localStorage.getItem(FECHADAS_KEY) || "{}"));
+      const [purchases, setPurchases] = useState([]);
+      const [cartoes, setCartoes] = useState([]);
+      const [categorias, setCategorias] = useState([]);
+      const [deparaList, setDeparaList] = useState([]);
+      const [faturasFechadas, setFaturasFechadas] = useState({});
       
       const [screen, setScreen] = useState("cadastros");
       const [cadastroTab, setCadastroTab] = useState("cartoes");
@@ -258,6 +253,7 @@
       const [novaCategoriaCor, setNovaCategoriaCor] = useState(CARD_COLORS[0]);
       const [subInputs, setSubInputs] = useState({});
 
+      // Carregar sessão e escutar mudanças de auth
       useEffect(() => {
         if (!supabaseClient) {
           setAuthLoading(false);
@@ -266,20 +262,109 @@
         supabaseClient.auth.getSession().then(({ data: { session } }) => {
           setSession(session);
           setAuthLoading(false);
+          if (session) loadDataFromSupabase(session.user.id);
         });
 
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
           setSession(session);
+          if (session) {
+            loadDataFromSupabase(session.user.id);
+          } else {
+            setPurchases([]);
+            setCartoes([]);
+            setCategorias([]);
+            setDeparaList([]);
+            setFaturasFechadas({});
+          }
         });
 
         return () => subscription.unsubscribe();
       }, []);
 
-      useEffect(() => { localStorage.setItem(PURCHASES_KEY, JSON.stringify(purchases)); }, [purchases]);
-      useEffect(() => { localStorage.setItem(CARTOES_KEY, JSON.stringify(cartoes)); }, [cartoes]);
-      useEffect(() => { localStorage.setItem(CATEGORIAS_KEY, JSON.stringify(categorias)); }, [categorias]);
-      useEffect(() => { localStorage.setItem(DEPARA_KEY, JSON.stringify(deparaList)); }, [deparaList]);
-      useEffect(() => { localStorage.setItem(FECHADAS_KEY, JSON.stringify(faturasFechadas)); }, [faturasFechadas]);
+      // Buscar dados do Supabase
+      async function loadDataFromSupabase(userId) {
+        setDataLoading(true);
+        const { data, error } = await supabaseClient
+          .from('app_data')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        if (data) {
+          setPurchases(data.purchases || []);
+          setCartoes(data.cartoes || []);
+          setCategorias(data.categorias || []);
+          setDeparaList(data.depara || []);
+          setFaturasFechadas(data.faturas_fechadas || {});
+        } else {
+          // Se não existir registro ainda para o usuário, cria um vazio
+          await supabaseClient.from('app_data').upsert({
+            user_id: userId,
+            purchases: [],
+            cartoes: [],
+            categorias: [],
+            depara: [],
+            faturas_fechadas: {}
+          });
+        }
+        setDataLoading(false);
+      }
+
+      // Salvar dados no Supabase sempre que houver alteração
+      async function saveDataToSupabase(newPurchases, newCartoes, newCategorias, newDepara, newFechadas) {
+        if (!session) return;
+        const userId = session.user.id;
+        await supabaseClient.from('app_data').upsert({
+          user_id: userId,
+          purchases: newPurchases,
+          cartoes: newCartoes,
+          categorias: newCategorias,
+          depara: newDepara,
+          faturas_fechadas: newFechadas,
+          updated_at: new Date()
+        });
+      }
+
+      // Funções Wrapper para atualizar o estado e salvar automaticamente na nuvem
+      function updatePurchases(updater) {
+        setPurchases(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(next, cartoes, categorias, deparaList, faturasFechadas);
+          return next;
+        });
+      }
+
+      function updateCartoes(updater) {
+        setCartoes(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(purchases, next, categorias, deparaList, faturasFechadas);
+          return next;
+        });
+      }
+
+      function updateCategorias(updater) {
+        setCategorias(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(purchases, cartoes, next, deparaList, faturasFechadas);
+          return next;
+        });
+      }
+
+      function updateDepara(updater) {
+        setDeparaList(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(purchases, cartoes, categorias, next, faturasFechadas);
+          return next;
+        });
+      }
+
+      function updateFechadas(updater) {
+        setFaturasFechadas(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(purchases, cartoes, categorias, deparaList, next);
+          return next;
+        });
+      }
 
       const installmentsForMonth = useMemo(() => {
         return purchases.map(p => {
@@ -324,7 +409,6 @@
         return installmentsForMonth.filter(p => p.parcelas > 1 && p.index === p.parcelas);
       }, [installmentsForMonth]);
 
-      // 2. FUNÇÕES AUXILIARES
       async function handleLogin(e) {
         e.preventDefault();
         setAuthError("");
@@ -350,7 +434,7 @@
           const confirmar = window.confirm("Tem certeza que deseja reabrir a fatura?");
           if (!confirmar) return;
         }
-        setFaturasFechadas(prev => ({ ...prev, [comp]: !prev[comp] }));
+        updateFechadas(prev => ({ ...prev, [comp]: !prev[comp] }));
       }
 
       function getCartao(id) { return cartoes.find(c => c.id === id) || null; }
@@ -409,9 +493,9 @@
         const nome = novoCartaoNome.trim();
         if (!nome) { setCartaoError("Dê um nome ao cartão."); return; }
         if (editingCartaoId) {
-          setCartoes(prev => prev.map(c => c.id === editingCartaoId ? { ...c, nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor } : c));
+          updateCartoes(prev => prev.map(c => c.id === editingCartaoId ? { ...c, nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor } : c));
         } else {
-          setCartoes(prev => [...prev, { id: uid(), nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor }]);
+          updateCartoes(prev => [...prev, { id: uid(), nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor }]);
         }
         setCartaoModalOpen(false);
       }
@@ -422,7 +506,7 @@
         const fatura = novoDeparaFatura.trim();
         if (!fatura) { setDeparaError("Informe a descrição da fatura."); return; }
         if (!novoDeparaCategoriaId || !novoDeparaSubcategoriaId) { setDeparaError("Selecione categoria e subcategoria."); return; }
-        setDeparaList(prev => [...prev, {
+        updateDepara(prev => [...prev, {
           id: uid(), fatura, importacao: novoDeparaImportacao.trim(), categoriaId: novoDeparaCategoriaId, subcategoriaId: novoDeparaSubcategoriaId
         }]);
         setNovoDeparaFatura(""); setNovoDeparaImportacao(""); setNovoDeparaCategoriaId(""); setNovoDeparaSubcategoriaId("");
@@ -432,14 +516,14 @@
         e.preventDefault();
         const nome = novaCategoriaNome.trim();
         if (!nome) return;
-        setCategorias(prev => [...prev, { id: uid(), nome, cor: novaCategoriaCor, subcategorias: [] }]);
+        updateCategorias(prev => [...prev, { id: uid(), nome, cor: novaCategoriaCor, subcategorias: [] }]);
         setNovaCategoriaNome("");
       }
 
       function handleAddSubcategoria(catId) {
         const nome = (subInputs[catId] || "").trim();
         if (!nome) return;
-        setCategorias(prev => prev.map(c => c.id !== catId ? c : { ...c, subcategorias: [...c.subcategorias, { id: uid(), nome }] }));
+        updateCategorias(prev => prev.map(c => c.id !== catId ? c : { ...c, subcategorias: [...c.subcategorias, { id: uid(), nome }] }));
         setSubInputs(prev => ({ ...prev, [catId]: "" }));
       }
 
@@ -495,7 +579,7 @@
           }
         });
 
-        setCategorias(novasCategorias);
+        updateCategorias(novasCategorias);
         setTxtCategoriasContent("");
         alert(`Importação concluída!\n- ${qtdCatAdicionadas} nova(s) categoria(s) adicionada(s).\n- ${qtdSubAdicionadas} nova(s) subcategoria(s) adicionada(s).`);
       }
@@ -513,11 +597,11 @@
 
       function handleConfirmDelete() {
         const { type, id, subId } = deleteModal;
-        if (type === "purchase") setPurchases(prev => prev.filter(p => p.id !== id));
-        else if (type === "cartao") setCartoes(prev => prev.filter(c => c.id !== id));
-        else if (type === "categoria") setCategorias(prev => prev.filter(c => c.id !== id));
-        else if (type === "subcategoria") setCategorias(prev => prev.map(c => c.id === id ? { ...c, subcategorias: c.subcategorias.filter(s => s.id !== subId) } : c));
-        else if (type === "depara") setDeparaList(prev => prev.filter(d => d.id !== id));
+        if (type === "purchase") updatePurchases(prev => prev.filter(p => p.id !== id));
+        else if (type === "cartao") updateCartoes(prev => prev.filter(c => c.id !== id));
+        else if (type === "categoria") updateCategorias(prev => prev.filter(c => c.id !== id));
+        else if (type === "subcategoria") updateCategorias(prev => prev.map(c => c.id === id ? { ...c, subcategorias: c.subcategorias.filter(s => s.id !== subId) } : c));
+        else if (type === "depara") updateDepara(prev => prev.filter(d => d.id !== id));
         setDeleteModal({ open: false, type: null, id: null, subId: null, title: "", message: "" });
       }
 
@@ -527,7 +611,7 @@
           alert("Digite exatamente EXCLUIR para confirmar.");
           return;
         }
-        setPurchases(prev => prev.filter(p => !selectedIds.includes(p.id)));
+        updatePurchases(prev => prev.filter(p => !selectedIds.includes(p.id)));
         setSelectedIds([]); setBatchConfirmText(""); setBatchDeleteModalOpen(false);
       }
 
@@ -554,11 +638,11 @@
         }
 
         if (editingId) {
-          setPurchases(prev => prev.map(p => p.id === editingId ? {
+          updatePurchases(prev => prev.map(p => p.id === editingId ? {
             ...p, descricao: descricao.trim(), total, dataCompra: dataLancamento, parcelas: n, parcelaInicial: atual, inicio: faturaMes, cartaoId: cartaoId || null, categoriaId, subcategoriaId
           } : p));
         } else {
-          setPurchases(prev => [...prev, {
+          updatePurchases(prev => [...prev, {
             id: uid(), descricao: descricao.trim(), total, dataCompra: dataLancamento, parcelas: n, parcelaInicial: atual, inicio: faturaMes, cartaoId: cartaoId || null, categoriaId, subcategoriaId, criadoEm: Date.now()
           }]);
         }
@@ -660,7 +744,7 @@
           }
 
           if (novasCompras.length > 0) {
-            setPurchases(prev => [...prev, ...novasCompras]);
+            updatePurchases(prev => [...prev, ...novasCompras]);
             let msg = `Sucesso! Foram importados ${novasCompras.length} lançamentos via De-Para.`;
             if (itensIgnoradosSemDepara > 0) msg += ` ${itensIgnoradosSemDepara} item(ns) ignorados por falta de regra De-Para cadastrada.`;
             alert(msg);
@@ -751,7 +835,7 @@
           }
 
           if (novasCompras.length > 0) {
-            setPurchases(prev => [...prev, ...novasCompras]);
+            updatePurchases(prev => [...prev, ...novasCompras]);
             alert(`Sucesso! Foram importados ${novasCompras.length} lançamentos da planilha.`);
           } else {
             alert("Nenhum lançamento válido foi encontrado na planilha.");
@@ -792,7 +876,6 @@
         window.print();
       }
 
-      // 3. VERIFICAÇÕES DE TELA (APÓS TODOS OS HOOKS)
       if (authLoading) {
         return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Carregando sistema...");
       }
@@ -821,7 +904,10 @@
         );
       }
 
-      // 4. RENDERIZAÇÃO NORMAL DO APLICATIVO LOGADO
+      if (dataLoading) {
+        return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Sincronizando dados da nuvem...");
+      }
+
       return h('div', { className: 'fatura-app' },
         h('style', null, `
           .fatura-app { --paper: #ECE8DD; --card: #FAF8F2; --ink: #262117; --ink-soft: #6B6355; --line: #D8D0BC; --green: #2F5233; --red: #8C3B2E; --red-soft: #F1E4DF; --amber: #D97706; --amber-soft: #FEF3C7; font-family: sans-serif; color: var(--ink); max-width: 900px; margin: 0 auto; padding: 12px; }
@@ -1273,4 +1359,3 @@
   </script>
 </body>
 </html>
- 
