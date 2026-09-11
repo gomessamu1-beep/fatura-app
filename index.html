@@ -330,10 +330,19 @@ if (!session) {
         const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
           setSession(session);
         });
+useEffect(() => {
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
+            setAuthLoading(false);
+        });
+
+        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+            setSession(session);
+        });
 
         return () => subscription.unsubscribe();
-       ([]);
-
+    }, []);
+     
       async function handleLogin(e) {
         e.preventDefault();
         setAuthError("");
