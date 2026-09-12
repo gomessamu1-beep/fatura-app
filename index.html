@@ -215,7 +215,7 @@
 
       const [purchases, setPurchases] = useState([]);
       const [cartoes, setCartoes] = useState([]);
-      const [contasBancarias, setContasBancarias] = useState([]); // Nova lista de contas
+      const [contasBancarias, setContasBancarias] = useState([]);
       const [categorias, setCategorias] = useState([]); 
       const [deparaList, setDeparaList] = useState([]);
       const [faturasFechadas, setFaturasFechadas] = useState({});
@@ -234,7 +234,7 @@
       
       const [modalOpen, setModalOpen] = useState(false);
       const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
-      const [contaModalOpen, setContaModalOpen] = useState(false); // Modal para contas bancárias/caixa
+      const [contaModalOpen, setContaModalOpen] = useState(false);
       const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" });
       
       const [editCategoriaModal, setEditCategoriaModal] = useState({ open: false, id: null, nome: "", cor: CARD_COLORS[0] });
@@ -260,11 +260,10 @@
       const [novoCartaoCor, setNovoCartaoCor] = useState(CARD_COLORS[0]);
       const [cartaoError, setCartaoError] = useState("");
 
-      // Estados para Nova Conta Bancária / Caixa
       const [editingContaId, setEditingContaId] = useState(null);
       const [novaContaNome, setNovaContaNome] = useState("");
       const [novaContaBanco, setNovaContaBanco] = useState("033");
-      const [novaContaTipo, setNovaContaTipo] = useState("corrente"); // corrente, investimento, dinheiro, outros
+      const [novaContaTipo, setNovaContaTipo] = useState("corrente");
       const [novaContaAgencia, setNovaContaAgencia] = useState("");
       const [novaContaNumero, setNovaContaNumero] = useState("");
       const [contaError, setContaError] = useState("");
@@ -1126,7 +1125,7 @@
           screen === "cadastros" && h('div', { className: 'form-card' },
             h('div', { className: 'sub-nav' },
               h('button', { className: cadastroTab === "cartoes" ? "active" : "", onClick: () => setCadastroTab("cartoes") }, "Cartões"),
-              h('button', { className: cadastroTab === "contas" ? "active" : "", onClick: () => setCadastroTab("contas") }, "🏦 Contas / Caixa"),
+              h('button', { className: cadastroTab === "contas" ? "active" : "", onClick: () => setCadastroTab("contas") }, "🏦 Contas"),
               h('button', { className: cadastroTab === "categorias" ? "active" : "", onClick: () => setCadastroTab("categorias") }, "Categorias"),
               h('button', { className: cadastroTab === "depara" ? "active" : "", onClick: () => setCadastroTab("depara") }, "De-Para (Regras)"),
               h('button', { className: cadastroTab === "importar-txt" ? "active" : "", onClick: () => setCadastroTab("importar-txt") }, "📥 Importar TXT")
@@ -1160,7 +1159,7 @@
               )
             ),
 
-            /* NOVA ABA: CONTAS / CAIXA */
+            /* ABA CONTAS */
             cadastroTab === "contas" && h(React.Fragment, null,
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
                 h('div', { style: { fontSize: 14, color: 'var(--ink-soft)' } }, "Minhas Contas Bancárias e Caixas"),
@@ -1657,12 +1656,11 @@
           )
         ),
 
-        /* MODAL DE CONTA / CAIXA */
         contaModalOpen && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420 } },
-            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, editingContaId ? "Editar Conta / Caixa" : "Nova Conta / Caixa"),
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, editingContaId ? "Editar Conta" : "Nova Conta"),
             h('form', { onSubmit: handleSaveConta, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
-              h('div', { className: 'field' }, h('label', null, "Nome da Conta / Caixa *"), h('input', { type: 'text', value: novaContaNome, onChange: e => setNovaContaNome(e.target.value), placeholder: 'Ex: Caixa Principal, Conta PJ Santander', required: true })),
+              h('div', { className: 'field' }, h('label', null, "Nome da Conta *"), h('input', { type: 'text', value: novaContaNome, onChange: e => setNovaContaNome(e.target.value), placeholder: 'Ex: Caixa Principal, Conta PJ Santander', required: true })),
               h('div', { className: 'field' }, h('label', null, "Banco *"), h('select', { value: novaContaBanco, onChange: e => setNovaContaBanco(e.target.value) }, BANCOS_FEBRABAN.map(b => h('option', { key: b.code, value: b.code }, b.name)))),
               h('div', { className: 'field' },
                 h('label', null, "Categoria / Tipo de Conta *"),
