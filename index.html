@@ -1043,7 +1043,16 @@ useEffect(() => {
 
           cadastroTab === "categorias" && h(React.Fragment, null,
             h('form', { onSubmit: handleAddCategoria, style: { display: 'flex', gap: 10, flexWrap: 'wrap' } },
-              h('input', { type: 'text', placeholder: 'Nome da nova categoria', value: novaCategoriaNome, onChange: (e) => setNovaCategoriaNome(e.target.value), style: { flex: 1, minWidth: 160 }, required: true }),
+              h('input', { 
+                type: 'text', 
+                placeholder: 'Nome da nova categoria', 
+                value: novaCategoriaNome, 
+                onChange: (e) => setNovaCategoriaNome(e.target.value), 
+                onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategoria(e); } },
+                style: { flex: 1, minWidth: 160 }, 
+                required: true 
+          }),
+             
               h('button', { type: 'submit', className: 'primary' }, h(Plus), " Cadastrar")
             ),
             h('div', { className: 'list-vertical' },
@@ -1066,7 +1075,14 @@ useEffect(() => {
                   )
                 )),
                 h('div', { className: 'add-subcat-form' },
-                  h('input', { type: 'text', placeholder: '+ Adicionar subcategoria', style: { padding: '4px 8px', fontSize: 12, flex: 1 }, value: subInputs[cat.id] || "", onChange: (e) => setSubInputs({ ...subInputs, [cat.id]: e.target.value }) }),
+                  h('input', { 
+                  type: 'text', 
+                  placeholder: '+ Adicionar subcategoria', 
+                  style: { padding: '4px 8px', fontSize: 12, flex: 1 }, 
+                  value: subInputs[cat.id] || "", 
+                  onChange: (e) => setSubInputs({ ...subInputs, [cat.id]: e.target.value }),
+                  onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubcategoria(cat.id); } }
+          }),          
                   h('button', { type: 'button', className: 'primary', style: { padding: '4px 8px', fontSize: 12 }, onClick: () => handleAddSubcategoria(cat.id) }, "Incluir")
                 )
               ))
