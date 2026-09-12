@@ -216,6 +216,7 @@
       const [categorias, setCategorias] = useState([]); 
       const [deparaList, setDeparaList] = useState([]);
       const [faturasFechadas, setFaturasFechadas] = useState({});
+      const [faturasBaixadas, setFaturasBaixadas] = useState({}); // { [comp]: { status: 'Baixado', bancoId, dataBaixa } }
       const [diasFechados, setDiasFechados] = useState({});
       const [mesesFechados, setMesesFechados] = useState({});
       
@@ -235,6 +236,7 @@
 
       // Modal de Baixa
       const [baixaModal, setBaixaModal] = useState({ open: false, type: null, id: null, bancoId: "", dataBaixa: currentDate() });
+      const [faturaBaixaModal, setFaturaBaixaModal] = useState({ open: false, comp: "", bancoId: "", dataBaixa: currentDate() });
       const [batchBaixaModal, setBatchBaixaModal] = useState({ open: false, bancoId: "", dataBaixa: currentDate() });
       const [batchPagarIds, setBatchPagarIds] = useState([]);
       const [batchReceberIds, setBatchReceberIds] = useState([]);
@@ -325,6 +327,7 @@
             setCategorias([]);
             setDeparaList([]);
             setFaturasFechadas({});
+            setFaturasBaixadas({});
             setDiasFechados({});
             setMesesFechados({});
           }
@@ -354,6 +357,7 @@
           setCategorias(loadedCats);
           setDeparaList(data.depara || []);
           setFaturasFechadas(data.faturas_fechadas || {});
+          setFaturasBaixadas(data.faturas_baixadas || {});
           setDiasFechados(data.dias_fechados || {});
           setMesesFechados(data.meses_fechados || {});
         } else {
@@ -367,6 +371,7 @@
             categorias: [],
             depara: [],
             faturas_fechadas: {},
+            faturas_baixadas: {},
             dias_fechados: {},
             meses_fechados: {}
           });
@@ -374,7 +379,7 @@
         setDataLoading(false);
       }
 
-      async function saveDataToSupabase(newPurchases, newPagar, newReceber, newCartoes, newContas, newCategorias, newDepara, newFechadas, newDias, newMeses) {
+      async function saveDataToSupabase(newPurchases, newPagar, newReceber, newCartoes, newContas, newCategorias, newDepara, newFechadas, newFaturasBaixadas, newDias, newMeses) {
         if (!session) return;
         const userId = session.user.id;
         await supabaseClient.from('app_data').upsert({
@@ -387,6 +392,7 @@
           categorias: newCategorias,
           depara: newDepara,
           faturas_fechadas: newFechadas,
+          faturas_baixadas: newFaturasBaixadas,
           dias_fechados: newDias,
           meses_fechados: newMeses,
           updated_at: new Date()
@@ -396,7 +402,7 @@
       function updatePurchases(updater) {
         setPurchases(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(next, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
+          saveDataToSupabase(next, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -404,7 +410,7 @@
       function updateContasPagar(updater) {
         setContasPagar(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, next, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
+          saveDataToSupabase(purchases, next, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -412,7 +418,7 @@
       function updateContasReceber(updater) {
         setContasReceber(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, next, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
+          saveDataToSupabase(purchases, contasPagar, next, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -420,7 +426,7 @@
       function updateCartoes(updater) {
         setCartoes(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, next, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, next, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -428,7 +434,7 @@
       function updateContasBancarias(updater) {
         setContasBancarias(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, next, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, next, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -436,7 +442,7 @@
       function updateCategorias(updater) {
         setCategorias(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, next, deparaList, faturasFechadas, diasFechados, mesesFechados);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, next, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -444,7 +450,7 @@
       function updateDepara(updater) {
         setDeparaList(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, next, faturasFechadas, diasFechados, mesesFechados);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, next, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -452,7 +458,15 @@
       function updateFechadas(updater) {
         setFaturasFechadas(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, next, diasFechados, mesesFechados);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, next, faturasBaixadas, diasFechados, mesesFechados);
+          return next;
+        });
+      }
+
+      function updateFaturasBaixadas(updater) {
+        setFaturasBaixadas(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, next, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -460,7 +474,7 @@
       function updateDiasFechados(updater) {
         setDiasFechados(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, next, mesesFechados);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, next, mesesFechados);
           return next;
         });
       }
@@ -468,16 +482,18 @@
       function updateMesesFechados(updater) {
         setMesesFechados(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, next);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, next);
           return next;
         });
       }
 
       function isFaturaFechada(comp) { return !!faturasFechadas[comp]; }
+      function getFaturaBaixa(comp) { return faturasBaixadas[comp] || null; }
       function isDiaFechado(dataStr) { return !!diasFechados[dataStr]; }
       function isMesFechado(compStr) { return !!mesesFechados[compStr]; }
 
       const fechadaAtual = isFaturaFechada(month);
+      const faturaBaixadaAtual = getFaturaBaixa(month);
 
       const installmentsForMonth = useMemo(() => {
         return purchases.map(p => {
@@ -595,6 +611,31 @@
         const jaEstaFechada = !!faturasFechadas[comp];
         if (jaEstaFechada && !window.confirm("Tem certeza que deseja reabrir a fatura?")) return;
         updateFechadas(prev => ({ ...prev, [comp]: !prev[comp] }));
+      }
+
+      function executarBaixaFatura(comp, bancoId, dataBaixaStr) {
+        if (!bancoId) { alert("Selecione uma conta bancária para efetuar a baixa da fatura."); return; }
+        if (!dataBaixaStr) { alert("Informe a data de pagamento."); return; }
+        if (isDiaFechado(dataBaixaStr) || isMesFechado(dataBaixaStr.substring(0, 7))) {
+          alert("Não é possível realizar a baixa em um dia ou mês que esteja bloqueado/fechado.");
+          return;
+        }
+        updateFaturasBaixadas(prev => ({ ...prev, [comp]: { status: 'Baixado', bancoId, dataBaixa: dataBaixaStr } }));
+        setFaturaBaixaModal({ open: false, comp: "", bancoId: "", dataBaixa: currentDate() });
+      }
+
+      function executarEstornoBaixaFatura(comp) {
+        const baixa = faturasBaixadas[comp];
+        if (baixa && baixa.dataBaixa && (isDiaFechado(baixa.dataBaixa) || isMesFechado(baixa.dataBaixa.substring(0, 7)))) {
+          alert("Não é possível estornar esta baixa pois o dia ou o mês correspondente encontram-se bloqueados/fechados.");
+          return;
+        }
+        if (!window.confirm("Deseja estornar o pagamento/baixa desta fatura?")) return;
+        updateFaturasBaixadas(prev => {
+          const next = { ...prev };
+          delete next[comp];
+          return next;
+        });
       }
 
       function getCartao(id) { return cartoes.find(c => c.id === id) || null; }
@@ -836,7 +877,6 @@
         e.preventDefault();
         setFormError("");
 
-        // Trava: se for edição e estiver baixado, não pode alterar
         if (editingId) {
           const itemExistente = lancamentoTab === "pagar" ? contasPagar.find(p => p.id === editingId) :
                                 lancamentoTab === "receber" ? contasReceber.find(p => p.id === editingId) : null;
@@ -997,6 +1037,28 @@
           }
         });
 
+        Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
+          if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa) {
+            if (baixa.dataBaixa >= concilDataIni && baixa.dataBaixa <= concilDataFim) {
+              // calcular total da fatura para esta competência
+              const values = purchases.map(p => {
+                const idx = monthDiff(p.inicio, comp);
+                const pInicial = p.parcelaInicial || 1;
+                const qtdRestante = p.parcelas - pInicial + 1;
+                if (idx < 0 || idx >= qtdRestante) return 0;
+                const mesesExcluidos = p.mesesExcluidos || [];
+                if (mesesExcluidos.includes(comp)) return 0;
+                const split = splitInstallments(p.total, p.parcelas);
+                return split[(pInicial - 1) + idx];
+              });
+              const totalComp = values.reduce((s, v) => s + v, 0);
+              if (totalComp > 0) {
+                lista.push({ id: `fat-${comp}`, data: baixa.dataBaixa, descricao: `Pagamento Fatura Cartão: ${formatMonthLabel(comp)}`, tipo: "Débito", valorDebito: totalComp, valorCredito: 0 });
+              }
+            }
+          }
+        });
+
         lista.sort((a, b) => a.data.localeCompare(b.data));
 
         let saldoAcumulado = 0;
@@ -1004,7 +1066,7 @@
           saldoAcumulado += (item.valorCredito - item.valorDebito);
           return { ...item, saldo: saldoAcumulado };
         });
-      }, [concilExibido, concilContaId, concilDataIni, concilDataFim, contasPagar, contasReceber]);
+      }, [concilExibido, concilContaId, concilDataIni, concilDataFim, contasPagar, contasReceber, faturasBaixadas, purchases]);
 
       const resumoDiarioConcil = useMemo(() => {
         const grupos = {};
@@ -1032,12 +1094,27 @@
           if (concilContaId) {
             contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa === strD) deb += (p.valorParcela || p.total); });
             contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += (r.valorParcela || r.total); });
+            Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
+              if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa === strD) {
+                const values = purchases.map(p => {
+                  const idx = monthDiff(p.inicio, comp);
+                  const pInicial = p.parcelaInicial || 1;
+                  const qtdRestante = p.parcelas - pInicial + 1;
+                  if (idx < 0 || idx >= qtdRestante) return 0;
+                  const mesesExcluidos = p.mesesExcluidos || [];
+                  if (mesesExcluidos.includes(comp)) return 0;
+                  const split = splitInstallments(p.total, p.parcelas);
+                  return split[(pInicial - 1) + idx];
+                });
+                deb += values.reduce((s, v) => s + v, 0);
+              }
+            });
           }
           acumulado += (cred - deb);
           dias.push({ data: strD, diaNum: d, debitos: deb, creditos: cred, saldo: acumulado });
         }
         return dias;
-      }, [concilCalMes, concilContaId, contasPagar, contasReceber]);
+      }, [concilCalMes, concilContaId, contasPagar, contasReceber, faturasBaixadas, purchases]);
 
       const totalMesPagarRelatorio = useMemo(() => contasPagarForMonth.reduce((s, p) => s + p.valorParcela, 0), [contasPagarForMonth]);
       const totalMesReceberRelatorio = useMemo(() => contasReceberForMonth.reduce((s, p) => s + p.valorParcela, 0), [contasReceberForMonth]);
@@ -1436,10 +1513,19 @@
               h('div', { className: 'top', style: { margin: 0, border: 'none', background: 'transparent', padding: 0 } },
                 h('div', { className: 'brand' },
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(CreditCard), " Lançamentos do cartão"),
-                  h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
-                    fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
-                    fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
+                  h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                    h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
+                      fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
+                      fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
+                    ),
+                    !faturaBaixadaAtual ?
+                      h('button', { type: 'button', className: 'primary', style: { fontSize: 13, padding: '4px 10px' }, onClick: () => setFaturaBaixaModal({ open: true, comp: month, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, "Baixar Fatura") :
+                      h('button', { type: 'button', className: 'danger', style: { fontSize: 13, padding: '4px 10px' }, onClick: () => executarEstornoBaixaFatura(month) }, "Estornar Baixa Fatura")
                   )
+                ),
+
+                faturaBaixadaAtual && h('div', { style: { background: '#D1FAE5', color: '#065F46', padding: '8px 12px', borderRadius: '5px', fontSize: '13px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' } },
+                  h(CreditCard, { size: 14 }), ` Fatura Baixada em ${formatDateBR(faturaBaixadaAtual.dataBaixa)} (${getConta(faturaBaixadaAtual.bancoId)?.nome || 'Banco'})`
                 ),
 
                 h('div', { className: 'nav-month' },
@@ -1659,6 +1745,7 @@
             h('div', { className: 'list-vertical' },
               faturasAgrupadas.map((f) => {
                 const fechada = isFaturaFechada(f.competencia);
+                const baixaFat = getFaturaBaixa(f.competencia);
                 const isSelectedComp = month === f.competencia;
                 return h('div', { className: 'list-item clickable', key: f.competencia, onClick: () => setMonth(f.competencia), style: { borderColor: isSelectedComp ? 'var(--green)' : 'var(--line)', background: isSelectedComp ? 'var(--paper)' : '#fff' } },
                   h('div', { className: 'list-item-main' },
@@ -1667,7 +1754,8 @@
                         formatMonthLabel(f.competencia),
                         h('button', { type: 'button', className: 'action-btn', style: { padding: '2px 6px', background: fechada ? 'var(--amber-soft)' : '#fff', borderColor: fechada ? 'var(--amber)' : 'var(--line)' }, onClick: (e) => toggleFaturaFechada(f.competencia, e) },
                           fechada ? h(Lock, { size: 12, color: 'var(--amber)' }) : h(Unlock, { size: 12, color: 'var(--green)' })
-                        )
+                        ),
+                        baixaFat && h('span', { className: 'badge baixado' }, `Baixada (${formatDateBR(baixaFat.dataBaixa)})`)
                       ),
                       h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `${f.qtd} lançamento(s)`)
                     ),
@@ -1683,9 +1771,14 @@
             h('div', { style: { marginTop: 24, borderTop: '2px solid var(--line)', paddingTop: 16 } },
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
                 h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Lançamentos da Fatura: ${formatMonthLabel(month)}`),
-                h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
-                  fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
-                  fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
+                h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                  h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
+                    fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
+                    fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
+                  ),
+                  !faturaBaixadaAtual ?
+                    h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setFaturaBaixaModal({ open: true, comp: month, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, "Baixar Fatura") :
+                    h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => executarEstornoBaixaFatura(month) }, "Estornar Baixa")
                 )
               ),
               installmentsForMonth.length === 0 ? h('div', { style: { color: 'var(--ink-soft)', fontSize: 13, padding: '16px 0' } }, "Nenhum lançamento para esta fatura.") : h('table', null,
@@ -1724,7 +1817,7 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
               h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Relatórios Financeiros"),
               h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
-                h('button', { type: 'button', className: 'action-btn', onClick: relatorioTab === "pagar" ? exportRelatorioExcel : exportRelatorioExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
+                h('button', { type: 'button', className: 'action-btn', onClick: exportRelatorioExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
                 h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " PDF / Imprimir")
               )
             ),
@@ -1926,6 +2019,27 @@
                 h('button', { type: 'button', className: 'action-btn', onClick: () => setModalOpen(false) }, "Cancelar"),
                 h('button', { type: 'submit', className: 'primary' }, h(Plus), " Salvar")
               )
+            )
+          )
+        ),
+
+        faturaBaixaModal.open && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 360 } },
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, `Baixar Fatura (${formatMonthLabel(faturaBaixaModal.comp)})`),
+            h('div', { className: 'field', style: { marginBottom: 10 } },
+              h('label', null, "Data do Pagamento *"),
+              h('input', { type: 'date', value: faturaBaixaModal.dataBaixa, onChange: e => setFaturaBaixaModal({ ...faturaBaixaModal, dataBaixa: e.target.value }) })
+            ),
+            h('div', { className: 'field', style: { marginBottom: 14 } },
+              h('label', null, "Conta Bancária de Pagamento *"),
+              h('select', { value: faturaBaixaModal.bancoId, onChange: e => setFaturaBaixaModal({ ...faturaBaixaModal, bancoId: e.target.value }) },
+                h('option', { value: "" }, "Selecione..."),
+                contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome))
+              )
+            ),
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+              h('button', { type: 'button', className: 'action-btn', onClick: () => setFaturaBaixaModal({ open: false, comp: "", bancoId: "", dataBaixa: currentDate() }) }, "Cancelar"),
+              h('button', { type: 'button', className: 'primary', onClick: () => executarBaixaFatura(faturaBaixaModal.comp, faturaBaixaModal.bancoId, faturaBaixaModal.dataBaixa) }, "Confirmar Baixa")
             )
           )
         ),
