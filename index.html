@@ -204,6 +204,11 @@
       const [modalOpen, setModalOpen] = useState(false);
       const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
       const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, title: "", message: "" });
+      
+      // Estados para edição de Categoria / Subcategoria
+      const [editCategoriaModal, setEditCategoriaModal] = useState({ open: false, id: null, nome: "", cor: CARD_COLORS[0] });
+      const [editSubcategoriaModal, setEditSubcategoriaModal] = useState({ open: false, catId: null, subId: null, nome: "" });
+
       const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
       const [batchConfirmText, setBatchConfirmText] = useState("");
       
@@ -486,6 +491,28 @@
           updateCartoes(prev => [...prev, { id: uid(), nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor }]);
         }
         setCartaoModalOpen(false);
+      }
+
+      function handleSaveEditCategoria(e) {
+        e.preventDefault();
+        const nome = editCategoriaModal.nome.trim();
+        if (!nome) return;
+        updateCategorias(prev => prev.map(c => c.id === editCategoriaModal.id ? { ...c, nome, cor: editCategoriaModal.cor } : c));
+        setEditCategoriaModal({ open: false, id: null, nome: "", cor: CARD_COLORS[0] });
+      }
+
+      function handleSaveEditSubcategoria(e) {
+        e.preventDefault();
+        const nome = editSubcategoriaModal.nome.trim();
+        if (!nome) return;
+        updateCategorias(prev => prev.map(c => {
+          if (c.id !== editSubcategoriaModal.catId) return c;
+          return {
+            ...c,
+            subcategorias: c.subcategorias.map(s => s.id === editSubcategoriaModal.subId ? { ...s, nome } : s)
+          };
+        }));
+        setEditSubcategoriaModal({ open: false, catId: null, subId: null, nome: "" });
       }
 
       function handleAddDepara(e) {
@@ -1020,11 +1047,17 @@
                     h('span', { className: 'dot', style: { background: cat.cor } }),
                     h('span', null, cat.nome)
                   ),
-                  h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'categoria', id: cat.id, title: 'Excluir Categoria', message: `Excluir ${cat.nome}?` }) }, h(Trash2, { size: 14 }))
+                  h('div', { style: { display: 'flex', gap: 6 } },
+                    h('button', { type: 'button', className: 'action-btn', onClick: () => setEditCategoriaModal({ open: true, id: cat.id, nome: cat.nome, cor: cat.cor || CARD_COLORS[0] }) }, h(Pencil, { size: 14 })),
+                    h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'categoria', id: cat.id, title: 'Excluir Categoria', message: `Excluir ${cat.nome}?` }) }, h(Trash2, { size: 14 }))
+                  )
                 ),
                 cat.subcategorias && cat.subcategorias.map((sub) => h('div', { className: 'subcategory-item-row', key: sub.id },
                   h('span', null, "↳ ", sub.nome),
-                  h('button', { type: 'button', className: 'action-btn delete', style: { padding: 3 }, onClick: () => setDeleteModal({ open: true, type: 'subcategoria', id: cat.id, subId: sub.id, title: 'Excluir Subcategoria', message: `Excluir ${sub.nome}?` }) }, h(Trash2, { size: 12 }))
+                  h('div', { style: { display: 'flex', gap: 4 } },
+                    h('button', { type: 'button', className: 'action-btn', style: { padding: 3 }, onClick: () => setEditSubcategoriaModal({ open: true, catId: cat.id, subId: sub.id, nome: sub.nome }) }, h(Pencil, { size: 12 })),
+                    h('button', { type: 'button', className: 'action-btn delete', style: { padding: 3 }, onClick: () => setDeleteModal({ open: true, type: 'subcategoria', id: cat.id, subId: sub.id, title: 'Excluir Subcategoria', message: `Excluir ${sub.nome}?` }) }, h(Trash2, { size: 12 }))
+                  )
                 )),
                 h('div', { className: 'add-subcat-form' },
                   h('input', { type: 'text', placeholder: '+ Adicionar subcategoria', style: { padding: '4px 8px', fontSize: 12, flex: 1 }, value: subInputs[cat.id] || "", onChange: (e) => setSubInputs({ ...subInputs, [cat.id]: e.target.value }) }),
@@ -1295,6 +1328,33 @@
               h('div', { className: 'submit-row' },
                 h('button', { type: 'button', className: 'action-btn', onClick: () => setModalOpen(false) }, "Cancelar"),
                 h('button', { type: 'submit', className: 'primary' }, h(Plus), " Salvar")
+              )
+            )
+          )
+        ),
+
+        editCategoriaModal.open && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Editar Categoria"),
+            h('form', { onSubmit: handleSaveEditCategoria, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+              h('div', { className: 'field' }, h('label', null, "Nome da Categoria *"), h('input', { type: 'text', value: editCategoriaModal.nome, onChange: e => setEditCategoriaModal({ ...editCategoriaModal, nome: e.target.value }), required: true })),
+              h('div', { className: 'field' }, h('label', null, "Cor"), h('div', { className: 'color-swatches' }, CARD_COLORS.map(cor => h('button', { type: 'button', key: cor, className: `color-swatch ${editCategoriaModal.cor === cor ? 'selected' : ''}`, style: { background: cor }, onClick: () => setEditCategoriaModal({ ...editCategoriaModal, cor }) })))),
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } },
+                h('button', { type: 'button', className: 'action-btn', onClick: () => setEditCategoriaModal({ open: false, id: null, nome: "", cor: CARD_COLORS[0] }) }, "Cancelar"),
+                h('button', { type: 'submit', className: 'primary' }, "Salvar")
+              )
+            )
+          )
+        ),
+
+        editSubcategoriaModal.open && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Editar Subcategoria"),
+            h('form', { onSubmit: handleSaveEditSubcategoria, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+              h('div', { className: 'field' }, h('label', null, "Nome da Subcategoria *"), h('input', { type: 'text', value: editSubcategoriaModal.nome, onChange: e => setEditSubcategoriaModal({ ...editSubcategoriaModal, nome: e.target.value }), required: true })),
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } },
+                h('button', { type: 'button', className: 'action-btn', onClick: () => setEditSubcategoriaModal({ open: false, catId: null, subId: null, nome: "" }) }, "Cancelar"),
+                h('button', { type: 'submit', className: 'primary' }, "Salvar")
               )
             )
           )
