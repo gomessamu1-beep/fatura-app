@@ -216,7 +216,7 @@
       const [categorias, setCategorias] = useState([]); 
       const [deparaList, setDeparaList] = useState([]);
       const [faturasFechadas, setFaturasFechadas] = useState({});
-      const [faturasBaixadas, setFaturasBaixadas] = useState({}); // { [comp]: { status: 'Baixado', bancoId, dataBaixa } }
+      const [faturasBaixadas, setFaturasBaixadas] = useState({});
       const [diasFechados, setDiasFechados] = useState({});
       const [mesesFechados, setMesesFechados] = useState({});
       
@@ -233,6 +233,9 @@
       const [concilDataFim, setConcilDataFim] = useState(currentDate());
       const [concilExibido, setConcilExibido] = useState(false);
       const [concilCalMes, setConcilCalMes] = useState(currentMonth());
+
+      // Modal de Edição Rápida / Detalhes vindo da Conciliação
+      const [concilEditModal, setConcilEditModal] = useState({ open: false, item: null });
 
       // Modal de Baixa
       const [baixaModal, setBaixaModal] = useState({ open: false, type: null, id: null, bancoId: "", dataBaixa: currentDate() });
@@ -1024,7 +1027,16 @@
         contasPagar.forEach(p => {
           if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa) {
             if (p.dataBaixa >= concilDataIni && p.dataBaixa <= concilDataFim) {
-              lista.push({ id: p.id, data: p.dataBaixa, descricao: `Baixa Pagar: ${p.descricao}`, tipo: "Débito", valorDebito: p.valorParcela || p.total, valorCredito: 0 });
+              lista.push({ 
+                id: p.id, 
+                tipoOrigem: 'pagar',
+                itemRef: p,
+                data: p.dataBaixa, 
+                descricao: `Baixa Pagar: ${p.descricao}`, 
+                tipo: "Débito", 
+                valorDebito: p.valorParcela || p.total, 
+                valorCredito: 0 
+              });
             }
           }
         });
@@ -1032,7 +1044,16 @@
         contasReceber.forEach(r => {
           if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa) {
             if (r.dataBaixa >= concilDataIni && r.dataBaixa <= concilDataFim) {
-              lista.push({ id: r.id, data: r.dataBaixa, descricao: `Baixa Receber: ${r.descricao}`, tipo: "Crédito", valorDebito: 0, valorCredito: r.valorParcela || r.total });
+              lista.push({ 
+                id: r.id, 
+                tipoOrigem: 'receber',
+                itemRef: r,
+                data: r.dataBaixa, 
+                descricao: `Baixa Receber: ${r.descricao}`, 
+                tipo: "Crédito", 
+                valorDebito: 0, 
+                valorCredito: r.valorParcela || r.total 
+              });
             }
           }
         });
@@ -1040,7 +1061,6 @@
         Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
           if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa) {
             if (baixa.dataBaixa >= concilDataIni && baixa.dataBaixa <= concilDataFim) {
-              // calcular total da fatura para esta competência
               const values = purchases.map(p => {
                 const idx = monthDiff(p.inicio, comp);
                 const pInicial = p.parcelaInicial || 1;
@@ -1053,7 +1073,17 @@
               });
               const totalComp = values.reduce((s, v) => s + v, 0);
               if (totalComp > 0) {
-                lista.push({ id: `fat-${comp}`, data: baixa.dataBaixa, descricao: `Pagamento Fatura Cartão: ${formatMonthLabel(comp)}`, tipo: "Débito", valorDebito: totalComp, valorCredito: 0 });
+                lista.push({ 
+                  id: `fat-${comp}`, 
+                  tipoOrigem: 'fatura',
+                  competenciaRef: comp,
+                  baixaRef: baixa,
+                  data: baixa.dataBaixa, 
+                  descricao: `Pagamento Fatura Cartão: ${formatMonthLabel(comp)}`, 
+                  tipo: "Débito", 
+                  valorDebito: totalComp, 
+                  valorCredito: 0 
+                });
               }
             }
           }
@@ -1976,13 +2006,20 @@
                 h('table', { style: { marginTop: 0 } },
                   h('thead', null,
                     h('tr', null,
-                      h('th', null, "Descrição"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'right' }, "Débito (-)"), h('th', { className: 'right' }, "Crédito (+)"), h('th', { className: 'right' }, "Saldo")
+                      h('th', null, "Descrição"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'center' }, "Link Lançamento"), h('th', { className: 'right' }, "Débito (-)"), h('th', { className: 'right' }, "Crédito (+)"), h('th', { className: 'right' }, "Saldo")
                     )
                   ),
                   h('tbody', null,
                     grupo.itens.map(item => h('tr', { key: item.id },
                       h('td', null, item.descricao),
                       h('td', { className: 'center' }, h('span', { className: `badge ${item.tipo === 'Débito' ? 'aberto' : 'baixado'}` }, item.tipo)),
+                      h('td', { className: 'center' },
+                        h('a', { 
+                          href: '#', 
+                          style: { color: 'var(--green)', fontWeight: 'bold', textDecoration: 'underline', fontSize: '12px' }, 
+                          onClick: (e) => { e.preventDefault(); setConcilEditModal({ open: true, item }); } 
+                        }, "🔗 Abrir / Alterar")
+                      ),
                       h('td', { className: 'right num', style: { color: 'var(--red)' } }, item.valorDebito ? formatBRL(item.valorDebito) : '-'),
                       h('td', { className: 'right num', style: { color: 'var(--green)' } }, item.valorCredito ? formatBRL(item.valorCredito) : '-'),
                       h('td', { className: 'right num', style: { fontWeight: 'bold' } }, formatBRL(item.saldo))
@@ -1993,6 +2030,70 @@
             )
           )
 
+        ),
+
+        /* Modal de Abertura / Alteração / Estorno pela Conciliação */
+        concilEditModal.open && concilEditModal.item && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420 } },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 12 } },
+              h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Detalhes e Gestão do Lançamento"),
+              h('button', { type: 'button', className: 'icon', onClick: () => setConcilEditModal({ open: false, item: null }) }, h(XIcon))
+            ),
+            concilEditModal.item.tipoOrigem === 'fatura' ? h('div', null,
+              h('p', null, `Pagamento de Fatura referente à competência: ${formatMonthLabel(concilEditModal.item.competenciaRef)}`),
+              h('p', null, `Data do Pagamento: ${formatDateBR(concilEditModal.item.baixaRef.dataBaixa)}`),
+              h('p', null, `Conta: ${getConta(concilEditModal.item.baixaRef.bancoId)?.nome || '-'}`),
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 } },
+                h('button', { type: 'button', className: 'action-btn', onClick: () => setConcilEditModal({ open: false, item: null }) }, "Fechar"),
+                h('button', { type: 'button', className: 'danger', onClick: () => {
+                  executarEstornoBaixaFatura(concilEditModal.item.competenciaRef);
+                  setConcilEditModal({ open: false, item: null });
+                } }, "Estornar Baixa da Fatura")
+              )
+            ) : h('div', null,
+              h('div', { style: { fontSize: 14, marginBottom: 10 } },
+                h('b', null, "Descrição: "), concilEditModal.item.itemRef.descricao
+              ),
+              h('div', { style: { fontSize: 14, marginBottom: 10 } },
+                h('b', null, "Valor: "), formatBRL(concilEditModal.item.itemRef.valorParcela || concilEditModal.item.itemRef.total)
+              ),
+              h('div', { style: { fontSize: 14, marginBottom: 10 } },
+                h('b', null, "Status: "), concilEditModal.item.itemRef.status
+              ),
+              h('div', { style: { fontSize: 14, marginBottom: 16 } },
+                h('b', null, "Baixado em: "), formatDateBR(concilEditModal.item.itemRef.dataBaixa), ` (${getConta(concilEditModal.item.itemRef.bancoBaixaId)?.nome || '-'})`
+              ),
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 20 } },
+                h('button', { type: 'button', className: 'danger', onClick: () => {
+                  const tipo = concilEditModal.item.tipoOrigem;
+                  const id = concilEditModal.item.itemRef.id;
+                  const dataBaixa = concilEditModal.item.itemRef.dataBaixa;
+                  setConcilEditModal({ open: false, item: null });
+                  executarEstornoBaixa(tipo, id, dataBaixa);
+                } }, "Estornar Baixa"),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', { type: 'button', className: 'action-btn', onClick: () => setConcilEditModal({ open: false, item: null }) }, "Cancelar"),
+                  h('button', { type: 'button', className: 'primary', onClick: () => {
+                    const ref = concilEditModal.item.itemRef;
+                    const tipo = concilEditModal.item.tipoOrigem;
+                    setConcilEditModal({ open: false, item: null });
+                    setEditingId(ref.id);
+                    setDescricao(ref.descricao);
+                    setValorTotal(ref.total.toFixed(2).replace('.', ','));
+                    setValorParcelaInput((ref.valorParcela || ref.total).toFixed(2).replace('.', ','));
+                    setDataLancamento(ref.dataCompra || currentDate());
+                    setFaturaMes(ref.inicio || month);
+                    setParcelas(ref.parcelas.toString());
+                    setParcelaAtual((ref.parcelaInicial || 1).toString());
+                    setCategoriaId(ref.categoriaId || '');
+                    setSubcategoriaId(ref.subcategoriaId || '');
+                    setLancamentoTab(tipo);
+                    setModalOpen(true);
+                  } }, "Editar Cadastro")
+                )
+              )
+            )
+          )
         ),
 
         modalOpen && h('div', { className: 'modal-overlay' },
