@@ -799,15 +799,17 @@
           return;
         }
 
+        const competenciaInicial = faturaMes || month || currentMonth();
+
         const novoRegistro = {
           id: editingId || uid(),
           descricao: descricao.trim(),
           total,
-          dataCompra: dataLancamento,
+          dataCompra: dataLancamento || currentDate(),
           parcelas: n,
           parcelaInicial: atual,
-          inicio: faturaMes,
-          cartaoId: cartaoId || null,
+          inicio: competenciaInicial,
+          cartaoId: lancamentoTab === "cartao" ? (cartaoId || null) : null,
           categoriaId,
           subcategoriaId,
           criadoEm: Date.now()
