@@ -1686,14 +1686,16 @@
               h('div', { className: 'top', style: { margin: 0, border: 'none', background: 'transparent', padding: 0 } },
                 h('div', { className: 'brand' },
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(CreditCard), " Lançamentos do cartão"),
-                  h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                  h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
                     h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
                       fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
                       fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
                     ),
                     !faturaBaixadaAtual ?
                       h('button', { type: 'button', className: 'primary', style: { fontSize: 13, padding: '4px 10px' }, onClick: () => setFaturaBaixaModal({ open: true, comp: month, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, "Baixar Fatura") :
-                      h('button', { type: 'button', className: 'danger', style: { fontSize: 13, padding: '4px 10px' }, onClick: () => executarEstornoBaixaFatura(month) }, "Estornar Baixa Fatura")
+                      h('button', { type: 'button', className: 'danger', style: { fontSize: 13, padding: '4px 10px' }, onClick: () => executarEstornoBaixaFatura(month) }, "Estornar Baixa Fatura"),
+                    // AQUI ESTÁ O BOTÃO NOVO ADICIONADO NO TOPO!
+                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
                   )
                 ),
 
@@ -1772,7 +1774,7 @@
               h('div', { style: { marginTop: 24, borderTop: '1px solid var(--line)', paddingTop: 20 } },
                 h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
                   h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Gerenciar Lançamentos de ${formatMonthLabel(month)}`),
-                  h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
+                  h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
                 ),
                 installmentsForMonth.map((p) => h('div', { className: 'purchase-row', key: `item-${p.id}-${p.index}` },
                   h('div', null,
@@ -1787,6 +1789,7 @@
                       setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
                       setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString());
                       setCartaoId(p.cartaoId || ''); setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
+                      setLancamentoTab('cartao');
                       setModalOpen(true);
                     }, disabled: fechadaAtual }, h(Pencil, { size: 14 })),
                     h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'purchase', id: p.id, purchase: p, title: 'Excluir Lançamento', message: '' }), disabled: fechadaAtual }, h(Trash2, { size: 14 }))
@@ -1805,7 +1808,7 @@
                       h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('pagar', batchPagarIds) }, `Estornar Baixa (${batchPagarIds.length})`),
                       h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) }, `Excluir (${batchPagarIds.length})`)
                     ),
-                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar")
+                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('pagar'); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar")
                   )
                 ),
                 h('div', { className: 'nav-month' },
@@ -1893,7 +1896,7 @@
               h('div', { style: { marginTop: 24, borderTop: '1px solid var(--line)', paddingTop: 20 } },
                 h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
                   h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Gerenciar Contas a Pagar de ${formatMonthLabel(month)}`),
-                  h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar")
+                  h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('pagar'); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar")
                 ),
                 contasPagarForMonth.map((p) => {
                   const isBaixado = p.status === "Baixado";
@@ -1913,6 +1916,7 @@
                         setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
                         setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString());
                         setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
+                        setLancamentoTab('pagar');
                         setModalOpen(true);
                       } }, h(Pencil, { size: 14 })),
                       h('button', { type: 'button', className: 'action-btn delete', title: isBaixado ? 'Baixado: Exclusão bloqueada por trava de segurança' : 'Excluir', onClick: () => setDeleteModal({ open: true, type: 'pagar', id: p.id, title: 'Excluir Conta a Pagar', message: isBaixado ? 'ERRO: Este lançamento já está baixado e possui trava de segurança contra exclusão.' : `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
@@ -1932,7 +1936,7 @@
                       h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('receber', batchReceberIds) }, `Estornar Baixa (${batchReceberIds.length})`),
                       h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) }, `Excluir (${batchReceberIds.length})`)
                     ),
-                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber")
+                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('receber'); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber")
                   )
                 ),
                 h('div', { className: 'nav-month' },
@@ -2020,7 +2024,7 @@
               h('div', { style: { marginTop: 24, borderTop: '1px solid var(--line)', paddingTop: 20 } },
                 h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
                   h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Gerenciar Contas a Receber de ${formatMonthLabel(month)}`),
-                  h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber")
+                  h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('receber'); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber")
                 ),
                 contasReceberForMonth.map((p) => {
                   const isBaixado = p.status === "Baixado";
@@ -2040,6 +2044,7 @@
                         setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
                         setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString());
                         setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
+                        setLancamentoTab('receber');
                         setModalOpen(true);
                       } }, h(Pencil, { size: 14 })),
                       h('button', { type: 'button', className: 'action-btn delete', title: isBaixado ? 'Baixado: Exclusão bloqueada por trava de segurança' : 'Excluir', onClick: () => setDeleteModal({ open: true, type: 'receber', id: p.id, title: 'Excluir Conta a Receber', message: isBaixado ? 'ERRO: Este lançamento já está baixado e possui trava de segurança contra exclusão.' : `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
@@ -2051,7 +2056,11 @@
           ),
 
           screen === "faturas" && h('div', { className: 'form-card' },
-            h('div', { style: { fontSize: 18, fontWeight: 'bold', marginBottom: 14 } }, "Resumo de Faturas por Ano"),
+            // AQUI ESTÁ O BOTÃO NOVO ADICIONADO NO TOPO DA TELA DE FATURAS!
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
+              h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Resumo de Faturas por Ano"),
+              h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
+            ),
             h('div', { style: { fontSize: 13, color: 'var(--ink-soft)', marginBottom: 20 } }, "Navegue pelos anos e clique em um mês para visualizar e gerenciar seus lançamentos logo abaixo."),
             
             /* Navegador de Anos */
@@ -2122,7 +2131,9 @@
                   ),
                   !faturaBaixadaAtual ?
                     h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setFaturaBaixaModal({ open: true, comp: month, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, "Baixar Fatura") :
-                    h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => executarEstornoBaixaFatura(month) }, "Estornar Baixa")
+                    h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => executarEstornoBaixaFatura(month) }, "Estornar Baixa"),
+                  // AQUI ESTÁ O BOTÃO NOVO ADICIONADO NO CABEÇALHO DA LISTA DA FATURA!
+                  h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
                 )
               ),
 
