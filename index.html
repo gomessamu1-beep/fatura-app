@@ -119,6 +119,11 @@
         h('circle', { cx: '12', cy: '12', r: '10' }), h('path', { d: 'm16 12-4-4-4 4' }), h('path', { d: 'M12 16V8' })
       );
     }
+    function Landmark({ size = 16 }) {
+      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
+        h('line', { x1: '3', y1: '22', x2: '21', y2: '22' }), h('line', { x1: '6', y1: '18', x2: '6', y2: '11' }), h('line', { x1: '10', y1: '18', x2: '10', y2: '11' }), h('line', { x1: '14', y1: '18', x2: '14', y2: '11' }), h('line', { x1: '18', y1: '18', x2: '18', y2: '11' }), h('polygon', { points: '12 2 20 7 4 7' })
+      );
+    }
 
     const BANCOS_FEBRABAN = [
       { code: "001", name: "001 - Banco do Brasil S.A." },
@@ -133,12 +138,8 @@
       { code: "290", name: "290 - PagBank (PagSeguro)" },
       { code: "748", name: "748 - Banco Cooperativo Sicredi S.A." },
       { code: "756", name: "756 - Banco Cooperativo Sicoob S.A." },
-      { code: "000", name: "Outro Banco / Customizado" }
+      { code: "000", name: "Outro Banco / Caixa / Dinheiro" }
     ];
-
-    function BankIcon({ code, size = 18 }) {
-      return h(CreditCard, { size });
-    }
 
     function splitInstallments(total, n) {
       const totalCents = Math.round(total * 100);
@@ -214,14 +215,15 @@
 
       const [purchases, setPurchases] = useState([]);
       const [cartoes, setCartoes] = useState([]);
-      const [categorias, setCategorias] = useState([]); // Array de categorias unificado com propriedade tipo: 'despesa' | 'receita'
+      const [contasBancarias, setContasBancarias] = useState([]); // Nova lista de contas
+      const [categorias, setCategorias] = useState([]); 
       const [deparaList, setDeparaList] = useState([]);
       const [faturasFechadas, setFaturasFechadas] = useState({});
       
       const [screen, setScreen] = useState(() => localStorage.getItem('fatura-screen-v1') || "cadastros");
       const [cadastroTab, setCadastroTab] = useState(() => localStorage.getItem('fatura-cadtab-v1') || "cartoes");
-      const [categoriaTipoTab, setCategoriaTipoTab] = useState("despesa"); // Sub-aba de categorias: 'despesa' ou 'receita'
-      const [lancamentoTab, setLancamentoTab] = useState("cartao"); // "cartao", "pagar", "receber"
+      const [categoriaTipoTab, setCategoriaTipoTab] = useState("despesa");
+      const [lancamentoTab, setLancamentoTab] = useState("cartao");
       const [month, setMonth] = useState(() => localStorage.getItem('fatura-month-v1') || currentMonth());
 
       useEffect(() => {
@@ -232,6 +234,7 @@
       
       const [modalOpen, setModalOpen] = useState(false);
       const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
+      const [contaModalOpen, setContaModalOpen] = useState(false); // Modal para contas bancárias/caixa
       const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" });
       
       const [editCategoriaModal, setEditCategoriaModal] = useState({ open: false, id: null, nome: "", cor: CARD_COLORS[0] });
@@ -256,6 +259,15 @@
       const [novoCartaoBanco, setNovoCartaoBanco] = useState("033");
       const [novoCartaoCor, setNovoCartaoCor] = useState(CARD_COLORS[0]);
       const [cartaoError, setCartaoError] = useState("");
+
+      // Estados para Nova Conta Bancária / Caixa
+      const [editingContaId, setEditingContaId] = useState(null);
+      const [novaContaNome, setNovaContaNome] = useState("");
+      const [novaContaBanco, setNovaContaBanco] = useState("033");
+      const [novaContaTipo, setNovaContaTipo] = useState("corrente"); // corrente, investimento, dinheiro, outros
+      const [novaContaAgencia, setNovaContaAgencia] = useState("");
+      const [novaContaNumero, setNovaContaNumero] = useState("");
+      const [contaError, setContaError] = useState("");
 
       const [novoDeparaFatura, setNovoDeparaFatura] = useState("");
       const [novoDeparaImportacao, setNovoDeparaImportacao] = useState("");
@@ -297,6 +309,7 @@
           } else {
             setPurchases([]);
             setCartoes([]);
+            setContasBancarias([]);
             setCategorias([]);
             setDeparaList([]);
             setFaturasFechadas({});
@@ -315,13 +328,13 @@
           .single();
 
         if (data) {
-          // Garante que categorias antigas tenham a propriedade 'tipo' padrão 'despesa'
           const loadedCats = (data.categorias || []).map(c => ({
             tipo: c.tipo || 'despesa',
             ...c
           }));
           setPurchases(data.purchases || []);
           setCartoes(data.cartoes || []);
+          setContasBancarias(data.contas_bancarias || []);
           setCategorias(loadedCats);
           setDeparaList(data.depara || []);
           setFaturasFechadas(data.faturas_fechadas || {});
@@ -330,6 +343,7 @@
             user_id: userId,
             purchases: [],
             cartoes: [],
+            contas_bancarias: [],
             categorias: [],
             depara: [],
             faturas_fechadas: {}
@@ -338,13 +352,14 @@
         setDataLoading(false);
       }
 
-      async function saveDataToSupabase(newPurchases, newCartoes, newCategorias, newDepara, newFechadas) {
+      async function saveDataToSupabase(newPurchases, newCartoes, newContas, newCategorias, newDepara, newFechadas) {
         if (!session) return;
         const userId = session.user.id;
         await supabaseClient.from('app_data').upsert({
           user_id: userId,
           purchases: newPurchases,
           cartoes: newCartoes,
+          contas_bancarias: newContas,
           categorias: newCategorias,
           depara: newDepara,
           faturas_fechadas: newFechadas,
@@ -355,7 +370,7 @@
       function updatePurchases(updater) {
         setPurchases(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(next, cartoes, categorias, deparaList, faturasFechadas);
+          saveDataToSupabase(next, cartoes, contasBancarias, categorias, deparaList, faturasFechadas);
           return next;
         });
       }
@@ -363,7 +378,15 @@
       function updateCartoes(updater) {
         setCartoes(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, next, categorias, deparaList, faturasFechadas);
+          saveDataToSupabase(purchases, next, contasBancarias, categorias, deparaList, faturasFechadas);
+          return next;
+        });
+      }
+
+      function updateContasBancarias(updater) {
+        setContasBancarias(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(purchases, cartoes, next, categorias, deparaList, faturasFechadas);
           return next;
         });
       }
@@ -371,7 +394,7 @@
       function updateCategorias(updater) {
         setCategorias(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, cartoes, next, deparaList, faturasFechadas);
+          saveDataToSupabase(purchases, cartoes, contasBancarias, next, deparaList, faturasFechadas);
           return next;
         });
       }
@@ -379,7 +402,7 @@
       function updateDepara(updater) {
         setDeparaList(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, cartoes, categorias, next, faturasFechadas);
+          saveDataToSupabase(purchases, cartoes, contasBancarias, categorias, next, faturasFechadas);
           return next;
         });
       }
@@ -387,7 +410,7 @@
       function updateFechadas(updater) {
         setFaturasFechadas(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, cartoes, categorias, deparaList, next);
+          saveDataToSupabase(purchases, cartoes, contasBancarias, categorias, deparaList, next);
           return next;
         });
       }
@@ -532,6 +555,23 @@
         setCartaoModalOpen(false);
       }
 
+      function handleSaveConta(e) {
+        e.preventDefault();
+        setContaError("");
+        const nome = novaContaNome.trim();
+        if (!nome) { setContaError("Dê um nome à conta."); return; }
+        if (editingContaId) {
+          updateContasBancarias(prev => prev.map(c => c.id === editingContaId ? {
+            ...c, nome, bancoCode: novaContaBanco, tipo: novaContaTipo, agencia: novaContaAgencia.trim(), numero: novaContaNumero.trim()
+          } : c));
+        } else {
+          updateContasBancarias(prev => [...prev, {
+            id: uid(), nome, bancoCode: novaContaBanco, tipo: novaContaTipo, agencia: novaContaAgencia.trim(), numero: novaContaNumero.trim()
+          }]);
+        }
+        setContaModalOpen(false);
+      }
+
       function handleSaveEditCategoria(e) {
         e.preventDefault();
         const nome = editCategoriaModal.nome.trim();
@@ -672,6 +712,7 @@
           }
         }
         else if (type === "cartao") updateCartoes(prev => prev.filter(c => c.id !== id));
+        else if (type === "conta") updateContasBancarias(prev => prev.filter(c => c.id !== id));
         else if (type === "categoria") updateCategorias(prev => prev.filter(c => c.id !== id));
         else if (type === "subcategoria") updateCategorias(prev => prev.map(c => c.id === id ? { ...c, subcategorias: c.subcategorias.filter(s => s.id !== subId) } : c));
         else if (type === "depara") updateDepara(prev => prev.filter(d => d.id !== id));
@@ -1085,6 +1126,7 @@
           screen === "cadastros" && h('div', { className: 'form-card' },
             h('div', { className: 'sub-nav' },
               h('button', { className: cadastroTab === "cartoes" ? "active" : "", onClick: () => setCadastroTab("cartoes") }, "Cartões"),
+              h('button', { className: cadastroTab === "contas" ? "active" : "", onClick: () => setCadastroTab("contas") }, "🏦 Contas / Caixa"),
               h('button', { className: cadastroTab === "categorias" ? "active" : "", onClick: () => setCadastroTab("categorias") }, "Categorias"),
               h('button', { className: cadastroTab === "depara" ? "active" : "", onClick: () => setCadastroTab("depara") }, "De-Para (Regras)"),
               h('button', { className: cadastroTab === "importar-txt" ? "active" : "", onClick: () => setCadastroTab("importar-txt") }, "📥 Importar TXT")
@@ -1118,8 +1160,56 @@
               )
             ),
 
+            /* NOVA ABA: CONTAS / CAIXA */
+            cadastroTab === "contas" && h(React.Fragment, null,
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                h('div', { style: { fontSize: 14, color: 'var(--ink-soft)' } }, "Minhas Contas Bancárias e Caixas"),
+                h('button', { type: 'button', className: 'primary', onClick: () => {
+                  setEditingContaId(null);
+                  setNovaContaNome("");
+                  setNovaContaBanco("033");
+                  setNovaContaTipo("corrente");
+                  setNovaContaAgencia("");
+                  setNovaContaNumero("");
+                  setContaModalOpen(true);
+                } }, h(Plus), " Nova Conta")
+              ),
+              h('div', { className: 'list-vertical', style: { marginTop: 12 } },
+                contasBancarias.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma conta cadastrada.") :
+                contasBancarias.map((conta) => {
+                  const bancoObj = BANCOS_FEBRABAN.find(b => b.code === conta.bancoCode);
+                  const tipoLabel = conta.tipo === 'corrente' ? 'Conta Corrente' : conta.tipo === 'investimento' ? 'Investimento' : conta.tipo === 'dinheiro' ? 'Dinheiro / Caixa' : 'Outros';
+                  return h('div', { className: 'list-item', key: conta.id },
+                    h('div', { className: 'list-item-main' },
+                      h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+                        h(Landmark, { size: 20 }),
+                        h('div', null,
+                          h('div', { style: { fontWeight: '600' } }, conta.nome),
+                          h('div', { style: { fontSize: '12px', color: 'var(--ink-soft)', marginTop: '2px' } },
+                            `${bancoObj ? bancoObj.name : conta.bancoCode} • ${tipoLabel}` +
+                            (conta.agencia || conta.numero ? ` • Ag: ${conta.agencia || '-'} | Conta: ${conta.numero || '-'}` : '')
+                          )
+                        )
+                      ),
+                      h('div', { style: { display: 'flex', gap: 6 } },
+                        h('button', { type: 'button', className: 'action-btn', onClick: () => {
+                          setEditingContaId(conta.id);
+                          setNovaContaNome(conta.nome);
+                          setNovaContaBanco(conta.bancoCode || "033");
+                          setNovaContaTipo(conta.tipo || "corrente");
+                          setNovaContaAgencia(conta.agencia || "");
+                          setNovaContaNumero(conta.numero || "");
+                          setContaModalOpen(true);
+                        } }, h(Pencil, { size: 14 })),
+                        h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'conta', id: conta.id, title: 'Excluir Conta', message: `Excluir a conta ${conta.nome}?` }) }, h(Trash2, { size: 14 }))
+                      )
+                    )
+                  );
+                })
+              )
+            ),
+
             cadastroTab === "categorias" && h(React.Fragment, null,
-              /* Sub-abas de Categorias: Despesa vs Receita */
               h('div', { style: { display: 'flex', gap: 10, marginBottom: 16 } },
                 h('button', { 
                   type: 'button', 
@@ -1239,14 +1329,12 @@
           ),
 
           screen === "lancamentos" && h('div', { className: 'form-card' },
-            /* Abas de Lançamentos */
             h('div', { className: 'sub-nav' },
               h('button', { className: lancamentoTab === "cartao" ? "active" : "", onClick: () => setLancamentoTab("cartao") }, h(CreditCard, { size: 16 }), " Cartão de Crédito"),
               h('button', { className: lancamentoTab === "pagar" ? "active" : "", onClick: () => setLancamentoTab("pagar") }, h(ArrowDownCircle, { size: 16 }), " Contas a Pagar"),
               h('button', { className: lancamentoTab === "receber" ? "active" : "", onClick: () => setLancamentoTab("receber") }, h(ArrowUpCircle, { size: 16 }), " Contas a Receber")
             ),
 
-            /* ABA 1: CARTÃO DE CRÉDITO */
             lancamentoTab === "cartao" && h(React.Fragment, null,
               h('div', { className: 'top', style: { margin: 0, border: 'none', background: 'transparent', padding: 0 } },
                 h('div', { className: 'brand' },
@@ -1368,7 +1456,6 @@
               )
             ),
 
-            /* ABA 2: CONTAS A PAGAR */
             lancamentoTab === "pagar" && h(React.Fragment, null,
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
                 h('div', null,
@@ -1383,7 +1470,6 @@
               )
             ),
 
-            /* ABA 3: CONTAS A RECEBER */
             lancamentoTab === "receber" && h(React.Fragment, null,
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
                 h('div', null,
@@ -1565,6 +1651,35 @@
               cartaoError && h('div', { style: { color: 'var(--red)', fontSize: 12 } }, cartaoError),
               h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } },
                 h('button', { type: 'button', className: 'action-btn', onClick: () => setCartaoModalOpen(false) }, "Cancelar"),
+                h('button', { type: 'submit', className: 'primary' }, "Salvar")
+              )
+            )
+          )
+        ),
+
+        /* MODAL DE CONTA / CAIXA */
+        contaModalOpen && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420 } },
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, editingContaId ? "Editar Conta / Caixa" : "Nova Conta / Caixa"),
+            h('form', { onSubmit: handleSaveConta, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+              h('div', { className: 'field' }, h('label', null, "Nome da Conta / Caixa *"), h('input', { type: 'text', value: novaContaNome, onChange: e => setNovaContaNome(e.target.value), placeholder: 'Ex: Caixa Principal, Conta PJ Santander', required: true })),
+              h('div', { className: 'field' }, h('label', null, "Banco *"), h('select', { value: novaContaBanco, onChange: e => setNovaContaBanco(e.target.value) }, BANCOS_FEBRABAN.map(b => h('option', { key: b.code, value: b.code }, b.name)))),
+              h('div', { className: 'field' },
+                h('label', null, "Categoria / Tipo de Conta *"),
+                h('select', { value: novaContaTipo, onChange: e => setNovaContaTipo(e.target.value) },
+                  h('option', { value: "corrente" }, "Conta Corrente"),
+                  h('option', { value: "investimento" }, "Conta Investimento"),
+                  h('option', { value: "dinheiro" }, "Dinheiro / Caixa Físico"),
+                  h('option', { value: "outros" }, "Outros")
+                )
+              ),
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+                h('div', { className: 'field' }, h('label', null, "Número da Agência"), h('input', { type: 'text', value: novaContaAgencia, onChange: e => setNovaContaAgencia(e.target.value), placeholder: 'Ex: 1234' })),
+                h('div', { className: 'field' }, h('label', null, "Número da Conta"), h('input', { type: 'text', value: novaContaNumero, onChange: e => setNovaContaNumero(e.target.value), placeholder: 'Ex: 56789-0' }))
+              ),
+              contaError && h('div', { style: { color: 'var(--red)', fontSize: 12 } }, contaError),
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } },
+                h('button', { type: 'button', className: 'action-btn', onClick: () => setContaModalOpen(false) }, "Cancelar"),
                 h('button', { type: 'submit', className: 'primary' }, "Salvar")
               )
             )
