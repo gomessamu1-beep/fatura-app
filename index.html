@@ -371,6 +371,11 @@ useEffect(() => {
           const pInicial = p.parcelaInicial || 1;
           const qtdRestante = p.parcelas - pInicial + 1;
           if (idx < 0 || idx >= qtdRestante) return null;
+          
+          // Verifica se esta competência específica foi excluída individualmente
+          const mesesExcluidos = p.mesesExcluidos || [];
+          if (mesesExcluidos.includes(month)) return null;
+
           const values = splitInstallments(p.total, p.parcelas);
           const numeroParcela = pInicial + idx;
           return { ...p, index: numeroParcela, valorParcela: values[numeroParcela - 1] };
@@ -616,16 +621,36 @@ useEffect(() => {
         if (txtInputRef.current) txtInputRef.current.value = "";
       }
 
-      function handleConfirmDelete() {
-        const { type, id, subId } = deleteModal;
-        if (type === "purchase") updatePurchases(prev => prev.filter(p => p.id !== id));
+      function handleConfirmDelete(option) {
+        const { type, id, subId, purchase } = deleteModal;
+        
+        if (type === "purchase") {
+          if (purchase && purchase.parcelas > 1) {
+            if (option === 'single') {
+              // Opção: Excluir somente a parcela deste mês atual
+              updatePurchases(prev => prev.map(p => {
+                if (p.id !== id) return p;
+                const excluidosAtuais = p.mesesExcluidos || [];
+                if (excluidosAtuais.includes(month)) return p;
+                return { ...p, mesesExcluidos: [...excluidosAtuais, month] };
+              }));
+            } else if (option === 'all') {
+              // Opção: Excluir todas as parcelas (remove o lançamento inteiro)
+              updatePurchases(prev => prev.filter(p => p.id !== id));
+            }
+          } else {
+            // Compra à vista (1x) exclui direto
+            updatePurchases(prev => prev.filter(p => p.id !== id));
+          }
+        } 
         else if (type === "cartao") updateCartoes(prev => prev.filter(c => c.id !== id));
         else if (type === "categoria") updateCategorias(prev => prev.filter(c => c.id !== id));
         else if (type === "subcategoria") updateCategorias(prev => prev.map(c => c.id === id ? { ...c, subcategorias: c.subcategorias.filter(s => s.id !== subId) } : c));
         else if (type === "depara") updateDepara(prev => prev.filter(d => d.id !== id));
-        setDeleteModal({ open: false, type: null, id: null, subId: null, title: "", message: "" });
+        
+        setDeleteModal({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" });
       }
-
+      
       function handleBatchDeleteConfirm(e) {
         e.preventDefault();
         if (batchConfirmText.trim().toUpperCase() !== "EXCLUIR") {
@@ -1236,8 +1261,16 @@ useEffect(() => {
                   setCartaoId(p.cartaoId || ''); setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
                   setModalOpen(true);
                 }, disabled: fechadaAtual }, h(Pencil, { size: 14 })),
-                h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'purchase', id: p.id, title: 'Excluir Lançamento', message: `Excluir ${p.descricao}?` }), disabled: fechadaAtual }, h(Trash2, { size: 14 }))
-              )
+                h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ 
+                  open: true, 
+                  type: 'purchase', 
+                  id: p.id, 
+                  purchase: p, 
+                  title: 'Excluir Lançamento', 
+                  message: '' 
+              }) 
+               
+               )
             ))
           ),
 
@@ -1397,16 +1430,24 @@ useEffect(() => {
         ),
 
         deleteModal.open && h('div', { className: 'modal-overlay' },
-          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 360 } },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
             h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 } }, deleteModal.title),
-            h('div', { style: { fontSize: 13, marginBottom: 14 } }, deleteModal.message),
-            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
-              h('button', { type: 'button', className: 'action-btn', onClick: () => setDeleteModal({ open: false, type: null, id: null, subId: null, title: "", message: "" }) }, "Cancelar"),
-              h('button', { type: 'button', className: 'danger', onClick: handleConfirmDelete }, "Excluir")
+            h('div', { style: { fontSize: 13, marginBottom: 14 } }, 
+              deleteModal.type === 'purchase' && deleteModal.purchase && deleteModal.purchase.parcelas > 1
+                ? "Compra Parcelada - Deseja excluir somente esta ou todas as parcelas?"
+                : (deleteModal.message || "Tem certeza que deseja excluir?")
+            ),
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' } },
+              h('button', { type: 'button', className: 'action-btn', onClick: () => setDeleteModal({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" }) }, "Cancelar"),
+              
+              deleteModal.type === 'purchase' && deleteModal.purchase && deleteModal.purchase.parcelas > 1 ? [
+                h('button', { type: 'button', className: 'danger', key: 'single', onClick: () => handleConfirmDelete('single') }, "Somente Esta"),
+                h('button', { type: 'button', className: 'danger', key: 'all', onClick: () => handleConfirmDelete('all') }, "Todas as Parcelas")
+              ] : h('button', { type: 'button', className: 'danger', onClick: () => handleConfirmDelete('all') }, "Excluir")
             )
           )
-        ),
-
+        )
+                                      
         cartaoModalOpen && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
             h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, editingCartaoId ? "Editar Cartão" : "Novo Cartão"),
