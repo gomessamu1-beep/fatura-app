@@ -124,6 +124,16 @@
         h('line', { x1: '3', y1: '22', x2: '21', y2: '22' }), h('line', { x1: '6', y1: '18', x2: '6', y2: '11' }), h('line', { x1: '10', y1: '18', x2: '10', y2: '11' }), h('line', { x1: '14', y1: '18', x2: '14', y2: '11' }), h('line', { x1: '18', y1: '18', x2: '18', y2: '11' }), h('polygon', { points: '12 2 20 7 4 7' })
       );
     }
+    function BarChart3({ size = 16 }) {
+      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
+        h('path', { d: 'M3 3v18h18' }), h('path', { d: 'M7 16v-4' }), h('path', { d: 'M11 16V8' }), h('path', { d: 'M15 16v-6' }), h('path', { d: 'M19 16v-2' })
+      );
+    }
+    function RefreshCw({ size = 16 }) {
+      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
+        h('path', { d: 'M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8' }), h('path', { d: 'M21 3v5h-5' }), h('path', { d: 'M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16' }), h('path', { d: 'M3 21v-5h5' })
+      );
+    }
 
     const BANCOS_FEBRABAN = [
       { code: "001", name: "001 - Banco do Brasil S.A." },
@@ -221,12 +231,28 @@
       const [categorias, setCategorias] = useState([]); 
       const [deparaList, setDeparaList] = useState([]);
       const [faturasFechadas, setFaturasFechadas] = useState({});
+      const [diasFechados, setDiasFechados] = useState({});
+      const [mesesFechados, setMesesFechados] = useState({});
       
       const [screen, setScreen] = useState(() => localStorage.getItem('fatura-screen-v1') || "cadastros");
       const [cadastroTab, setCadastroTab] = useState(() => localStorage.getItem('fatura-cadtab-v1') || "cartoes");
       const [categoriaTipoTab, setCategoriaTipoTab] = useState("despesa");
       const [lancamentoTab, setLancamentoTab] = useState("cartao");
+      const [relatorioTab, setRelatorioTab] = useState("pagar");
       const [month, setMonth] = useState(() => localStorage.getItem('fatura-month-v1') || currentMonth());
+
+      // Conciliação Bancária State
+      const [concilContaId, setConcilContaId] = useState("");
+      const [concilDataIni, setConcilDataIni] = useState(`${currentMonth()}-01`);
+      const [concilDataFim, setConcilDataFim] = useState(currentDate());
+      const [concilExibido, setConcilExibido] = useState(false);
+      const [concilCalMes, setConcilCalMes] = useState(currentMonth());
+
+      // Modal de Baixa
+      const [baixaModal, setBaixaModal] = useState({ open: false, type: null, id: null, bancoId: "" });
+      const [batchBaixaModal, setBatchBaixaModal] = useState({ open: false, bancoId: "" });
+      const [batchPagarIds, setBatchPagarIds] = useState([]);
+      const [batchReceberIds, setBatchReceberIds] = useState([]);
 
       useEffect(() => {
         localStorage.setItem('fatura-screen-v1', screen);
@@ -316,6 +342,8 @@
             setCategorias([]);
             setDeparaList([]);
             setFaturasFechadas({});
+            setDiasFechados({});
+            setMesesFechados({});
           }
         });
 
@@ -343,6 +371,8 @@
           setCategorias(loadedCats);
           setDeparaList(data.depara || []);
           setFaturasFechadas(data.faturas_fechadas || {});
+          setDiasFechados(data.dias_fechados || {});
+          setMesesFechados(data.meses_fechados || {});
         } else {
           await supabaseClient.from('app_data').upsert({
             user_id: userId,
@@ -353,13 +383,15 @@
             contas_bancarias: [],
             categorias: [],
             depara: [],
-            faturas_fechadas: {}
+            faturas_fechadas: {},
+            dias_fechados: {},
+            meses_fechados: {}
           });
         }
         setDataLoading(false);
       }
 
-      async function saveDataToSupabase(newPurchases, newPagar, newReceber, newCartoes, newContas, newCategorias, newDepara, newFechadas) {
+      async function saveDataToSupabase(newPurchases, newPagar, newReceber, newCartoes, newContas, newCategorias, newDepara, newFechadas, newDias, newMeses) {
         if (!session) return;
         const userId = session.user.id;
         await supabaseClient.from('app_data').upsert({
@@ -372,6 +404,8 @@
           categorias: newCategorias,
           depara: newDepara,
           faturas_fechadas: newFechadas,
+          dias_fechados: newDias,
+          meses_fechados: newMeses,
           updated_at: new Date()
         });
       }
@@ -379,7 +413,7 @@
       function updatePurchases(updater) {
         setPurchases(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(next, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas);
+          saveDataToSupabase(next, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -387,7 +421,7 @@
       function updateContasPagar(updater) {
         setContasPagar(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, next, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas);
+          saveDataToSupabase(purchases, next, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -395,7 +429,7 @@
       function updateContasReceber(updater) {
         setContasReceber(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, next, cartoes, contasBancarias, categorias, deparaList, faturasFechadas);
+          saveDataToSupabase(purchases, contasPagar, next, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -403,7 +437,7 @@
       function updateCartoes(updater) {
         setCartoes(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, next, contasBancarias, categorias, deparaList, faturasFechadas);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, next, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -411,7 +445,7 @@
       function updateContasBancarias(updater) {
         setContasBancarias(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, next, categorias, deparaList, faturasFechadas);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, next, categorias, deparaList, faturasFechadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -419,7 +453,7 @@
       function updateCategorias(updater) {
         setCategorias(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, next, deparaList, faturasFechadas);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, next, deparaList, faturasFechadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -427,7 +461,7 @@
       function updateDepara(updater) {
         setDeparaList(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, next, faturasFechadas);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, next, faturasFechadas, diasFechados, mesesFechados);
           return next;
         });
       }
@@ -435,7 +469,23 @@
       function updateFechadas(updater) {
         setFaturasFechadas(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, next);
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, next, diasFechados, mesesFechados);
+          return next;
+        });
+      }
+
+      function updateDiasFechados(updater) {
+        setDiasFechados(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, next, mesesFechados);
+          return next;
+        });
+      }
+
+      function updateMesesFechados(updater) {
+        setMesesFechados(prev => {
+          const next = typeof updater === 'function' ? updater(prev) : updater;
+          saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, diasFechados, next);
           return next;
         });
       }
@@ -538,18 +588,32 @@
       }
 
       function isFaturaFechada(comp) { return !!faturasFechadas[comp]; }
+      function isDiaFechado(dataStr) { return !!diasFechados[dataStr]; }
+      function isMesFechado(compStr) { return !!mesesFechados[compStr]; }
+
+      function toggleDiaFechado(dataStr, e) {
+        if (e) e.stopPropagation();
+        const jaFechado = !!diasFechados[dataStr];
+        if (jaFechado && !window.confirm(`Deseja reabrir o dia ${formatDateBR(dataStr)}?`)) return;
+        updateDiasFechados(prev => ({ ...prev, [dataStr]: !prev[dataStr] }));
+      }
+
+      function toggleMesFechado(compStr, e) {
+        if (e) e.stopPropagation();
+        const jaFechado = !!mesesFechados[compStr];
+        if (jaFechado && !window.confirm(`Deseja reabrir o mês ${formatMonthLabel(compStr)}?`)) return;
+        updateMesesFechados(prev => ({ ...prev, [compStr]: !prev[compStr] }));
+      }
 
       function toggleFaturaFechada(comp, e) {
         if (e) e.stopPropagation();
         const jaEstaFechada = !!faturasFechadas[comp];
-        if (jaEstaFechada) {
-          const confirmar = window.confirm("Tem certeza que deseja reabrir a fatura?");
-          if (!confirmar) return;
-        }
+        if (jaEstaFechada && !window.confirm("Tem certeza que deseja reabrir a fatura?")) return;
         updateFechadas(prev => ({ ...prev, [comp]: !prev[comp] }));
       }
 
       function getCartao(id) { return cartoes.find(c => c.id === id) || null; }
+      function getConta(id) { return contasBancarias.find(c => c.id === id) || null; }
       function getCategoria(id) { return categorias.find(cat => cat.id === id) || null; }
       function getSubcategoria(catId, subId) {
         const cat = getCategoria(catId);
@@ -751,14 +815,10 @@
       }
 
       function handleConfirmDelete(option) {
-        const { type, id, subId, purchase } = deleteModal;
-        if (type === "purchase") {
-          updatePurchases(prev => prev.filter(p => p.id !== id));
-        } else if (type === "pagar") {
-          updateContasPagar(prev => prev.filter(p => p.id !== id));
-        } else if (type === "receber") {
-          updateContasReceber(prev => prev.filter(p => p.id !== id));
-        }
+        const { type, id, subId } = deleteModal;
+        if (type === "purchase") updatePurchases(prev => prev.filter(p => p.id !== id));
+        else if (type === "pagar") updateContasPagar(prev => prev.filter(p => p.id !== id));
+        else if (type === "receber") updateContasReceber(prev => prev.filter(p => p.id !== id));
         else if (type === "cartao") updateCartoes(prev => prev.filter(c => c.id !== id));
         else if (type === "conta") updateContasBancarias(prev => prev.filter(c => c.id !== id));
         else if (type === "categoria") updateCategorias(prev => prev.filter(c => c.id !== id));
@@ -790,6 +850,9 @@
         e.preventDefault();
         setFormError("");
         if (lancamentoTab === "cartao" && isFaturaFechada(faturaMes)) { setFormError("A fatura selecionada está fechada."); return; }
+        if (isDiaFechado(dataLancamento)) { setFormError("Este dia está fechado e não aceita novos lançamentos."); return; }
+        if (isMesFechado(faturaMes)) { setFormError("Este mês de competência está fechado."); return; }
+
         const total = parseValorInput(valorTotal);
         const n = parseInt(parcelas, 10);
         const atual = parseInt(parcelaAtual, 10);
@@ -812,18 +875,21 @@
           cartaoId: lancamentoTab === "cartao" ? (cartaoId || null) : null,
           categoriaId,
           subcategoriaId,
+          status: "Em aberto",
+          bancoBaixaId: null,
+          dataBaixa: null,
           criadoEm: Date.now()
         };
 
         if (lancamentoTab === "receber") {
           if (editingId) {
-            updateContasReceber(prev => prev.map(p => p.id === editingId ? novoRegistro : p));
+            updateContasReceber(prev => prev.map(p => p.id === editingId ? { ...p, ...novoRegistro, status: p.status, bancoBaixaId: p.bancoBaixaId, dataBaixa: p.dataBaixa } : p));
           } else {
             updateContasReceber(prev => [...prev, novoRegistro]);
           }
         } else if (lancamentoTab === "pagar") {
           if (editingId) {
-            updateContasPagar(prev => prev.map(p => p.id === editingId ? novoRegistro : p));
+            updateContasPagar(prev => prev.map(p => p.id === editingId ? { ...p, ...novoRegistro, status: p.status, bancoBaixaId: p.bancoBaixaId, dataBaixa: p.dataBaixa } : p));
           } else {
             updateContasPagar(prev => [...prev, novoRegistro]);
           }
@@ -838,215 +904,91 @@
         setModalOpen(false);
       }
 
-      async function handlePDFImport(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+      function executarBaixaIndividual(type, id, bancoId) {
+        if (!bancoId) { alert("Selecione uma conta bancária para efetuar a baixa."); return; }
+        const dataB = currentDate();
+        if (isDiaFechado(dataB)) { alert("O dia atual está fechado para movimentações."); return; }
 
-        if (isFaturaFechada(month)) {
-          alert("A fatura deste mês está fechada. Abra a fatura antes de importar novos lançamentos.");
-          if (fileInputRef.current) fileInputRef.current.value = "";
-          return;
+        if (type === "pagar") {
+          updateContasPagar(prev => prev.map(p => p.id === id ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataB } : p));
+        } else if (type === "receber") {
+          updateContasReceber(prev => prev.map(p => p.id === id ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataB } : p));
         }
-
-        setIsImportingPDF(true);
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-          const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-          const pdfDoc = await loadingTask.promise;
-          
-          let fullTextLines = [];
-          for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const page = await pdfDoc.getPage(i);
-            const textContent = await page.getTextContent();
-            textContent.items.forEach(item => {
-              if (item.str && item.str.trim()) fullTextLines.push(item.str.trim());
-            });
-          }
-
-          const novasCompras = [];
-          let itensIgnoradosSemDepara = 0;
-          const currentYear = month.split("-")[0];
-          const cartaoSantander = cartoes.find(c => c.bancoCode === "033") || cartoes[0];
-          const defaultCartaoId = cartaoSantander ? cartaoSantander.id : null;
-
-          let i = 0;
-          while (i < fullTextLines.length) {
-            const line = fullTextLines[i];
-            const dateMatch = line.match(/^(\d{2})\/(\d{2})$/);
-            if (dateMatch) {
-              const dia = dateMatch[1];
-              const mes = dateMatch[2];
-              const dataCompra = `${currentYear}-${mes}-${dia}`;
-              
-              let descParts = [];
-              let valorEncontrado = null;
-              let parcelaAtualNum = 1;
-              let totalParcelasNum = 1;
-
-              let j = i + 1;
-              let foundVal = false;
-              while (j < Math.min(i + 6, fullTextLines.length)) {
-                const nextLine = fullTextLines[j];
-                const valMatch = nextLine.match(/^-?([\d]{1,3}(\.[\d]{3})*|\d+),(\d{2})$/);
-                if (valMatch) {
-                  valorEncontrado = parseValorInput(nextLine);
-                  foundVal = true;
-                  i = j;
-                  break;
-                } else {
-                  const parcMatch = nextLine.match(/^(\d{2})\/(\d{2})$/);
-                  if (parcMatch) {
-                    parcelaAtualNum = parseInt(parcMatch[1], 10);
-                    totalParcelasNum = parseInt(parcMatch[2], 10);
-                  } else {
-                    descParts.push(nextLine);
-                  }
-                }
-                j++;
-              }
-
-              if (foundVal && valorEncontrado !== null && valorEncontrado > 0) {
-                const rawDesc = descParts.join(" ").trim() || "Compra Importada Santander";
-                const regra = buscarRegraDepara(rawDesc);
-                
-                if (regra.encontrado && regra.categoriaId && regra.subcategoriaId) {
-                  const inicioCompetencia = addMonths(month, -(parcelaAtualNum - 1));
-                  novasCompras.push({
-                    id: uid(),
-                    descricao: regra.descricao,
-                    total: valorEncontrado * totalParcelasNum,
-                    dataCompra: dataCompra,
-                    parcelas: totalParcelasNum,
-                    parcelaInicial: 1,
-                    inicio: inicioCompetencia,
-                    cartaoId: defaultCartaoId,
-                    categoriaId: regra.categoriaId,
-                    subcategoriaId: regra.subcategoriaId,
-                    criadoEm: Date.now()
-                  });
-                } else {
-                  itensIgnoradosSemDepara++;
-                }
-              }
-            }
-            i++;
-          }
-
-          if (novasCompras.length > 0) {
-            updatePurchases(prev => [...prev, ...novasCompras]);
-            let msg = `Sucesso! Foram importados ${novasCompras.length} lançamentos via De-Para.`;
-            if (itensIgnoradosSemDepara > 0) msg += ` ${itensIgnoradosSemDepara} item(ns) ignorados por falta de regra De-Para cadastrada.`;
-            alert(msg);
-          } else {
-            alert(`Nenhum lançamento importado. ${itensIgnoradosSemDepara > 0 ? `${itensIgnoradosSemDepara} itens encontrados na fatura não possuem regra De-Para válida cadastrada.` : 'Nenhum item válido encontrado.'}`);
-          }
-        } catch (err) {
-          console.error(err);
-          alert("Erro ao ler o arquivo PDF.");
-        } finally {
-          setIsImportingPDF(false);
-          if (fileInputRef.current) fileInputRef.current.value = "";
-        }
+        setBaixaModal({ open: false, type: null, id: null, bancoId: "" });
       }
 
-      async function handlePlanilhaImport(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+      function executarBaixaLote(type, bancoId, ids) {
+        if (!bancoId) { alert("Selecione uma conta bancária para efetuar a baixa."); return; }
+        if (!ids || ids.length === 0) { alert("Nenhum item selecionado."); return; }
+        const dataB = currentDate();
+        if (isDiaFechado(dataB)) { alert("O dia atual está fechado para movimentações."); return; }
 
-        if (isFaturaFechada(month)) {
-          alert("A fatura deste mês está fechada. Abra a fatura antes de importar novos lançamentos.");
-          if (planilhaInputRef.current) planilhaInputRef.current.value = "";
-          return;
+        if (type === "pagar") {
+          updateContasPagar(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataB } : p));
+          setBatchPagarIds([]);
+        } else if (type === "receber") {
+          updateContasReceber(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataB } : p));
+          setBatchReceberIds([]);
         }
-
-        setIsImportingPlanilha(true);
-        try {
-          const text = await file.text();
-          const lines = text.split("\n");
-          if (lines.length <= 1) {
-            alert("O arquivo CSV/Planilha está vazio ou em formato inválido.");
-            return;
-          }
-
-          const header = lines[0];
-          const separator = header.includes(";") ? ";" : ",";
-
-          const novasCompras = [];
-          const currentYear = month.split("-")[0];
-          const defaultCartaoId = cartoes[0] ? cartoes[0].id : null;
-
-          for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-
-            const cols = line.split(separator).map(c => c.replace(/^["']|["']$/g, "").trim());
-            if (cols.length < 2) continue;
-
-            const dataStr = cols[0] || `${currentYear}-01-01`;
-            let dataIso = currentDate();
-            if (dataStr.includes("/")) {
-              const pData = dataStr.split("/");
-              if (pData.length === 3) dataIso = `${pData[2]}-${pData[1]}-${pData[0]}`;
-            }
-
-            const descricaoItem = cols[1] || "Lançamento Importado";
-            const parcelaStr = cols[5] || "1/1";
-            const pParts = parcelaStr.split("/");
-            const parcelaAtualNum = parseInt(pParts[0], 10) || 1;
-            const totalParcelasNum = parseInt(pParts[1], 10) || 1;
-
-            const valorTotalNum = parseValorInput(cols[7]) || (parseValorInput(cols[6]) * totalParcelasNum) || 0;
-
-            if (valorTotalNum > 0) {
-              const regra = buscarRegraDepara(descricaoItem);
-              const primeiraCatDespesa = categorias.find(c => c.tipo !== 'receita');
-              const catFinal = regra.encontrado ? regra.categoriaId : (primeiraCatDespesa ? primeiraCatDespesa.id : null);
-              const subFinal = regra.encontrado ? regra.subcategoriaId : (primeiraCatDespesa?.subcategorias[0] ? primeiraCatDespesa.subcategorias[0].id : null);
-              const descFinal = regra.encontrado ? regra.descricao : descricaoItem;
-
-              const inicioCompetencia = addMonths(month, -(parcelaAtualNum - 1));
-
-              if (catFinal && subFinal) {
-                novasCompras.push({
-                  id: uid(),
-                  descricao: descFinal,
-                  total: valorTotalNum,
-                  dataCompra: dataIso,
-                  parcelas: totalParcelasNum,
-                  parcelaInicial: 1,
-                  inicio: inicioCompetencia,
-                  cartaoId: defaultCartaoId,
-                  categoriaId: catFinal,
-                  subcategoriaId: subFinal,
-                  criadoEm: Date.now()
-                });
-              }
-            }
-          }
-
-          if (novasCompras.length > 0) {
-            updatePurchases(prev => [...prev, ...novasCompras]);
-            alert(`Sucesso! Foram importados ${novasCompras.length} lançamentos da planilha.`);
-          } else {
-            alert("Nenhum lançamento válido foi encontrado na planilha.");
-          }
-        } catch (err) {
-          console.error(err);
-          alert("Erro ao ler o arquivo de planilha.");
-        } finally {
-          setIsImportingPlanilha(false);
-          if (planilhaInputRef.current) planilhaInputRef.current.value = "";
-        }
+        setBatchBaixaModal({ open: false, bancoId: "" });
       }
 
-      const totalMes = installmentsForMonth.reduce((s, p) => s + p.valorParcela, 0);
-      const totalPagarMes = contasPagarForMonth.reduce((s, p) => s + p.valorParcela, 0);
-      const totalReceberMes = contasReceberForMonth.reduce((s, p) => s + p.valorParcela, 0);
+      const movimentacoesConciliacao = useMemo(() => {
+        if (!concilExibido || !concilContaId) return [];
+        const lista = [];
 
-      const totalValorParcelaTabela = totalMes;
-      const totalValorTotalTabela = installmentsForMonth.reduce((acc, p) => acc + p.total, 0);
-      const totalTerminandoEsteMes = parcelasTerminandoEsteMes.reduce((s, p) => s + p.valorParcela, 0);
-      const fechadaAtual = isFaturaFechada(month);
+        contasPagar.forEach(p => {
+          if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa) {
+            if (p.dataBaixa >= concilDataIni && p.dataBaixa <= concilDataFim) {
+              lista.push({ id: p.id, data: p.dataBaixa, descricao: `Baixa Pagar: ${p.descricao}`, tipo: "debito", valor: p.valorParcela || p.total });
+            }
+          }
+        });
+
+        contasReceber.forEach(r => {
+          if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa) {
+            if (r.dataBaixa >= concilDataIni && r.dataBaixa <= concilDataFim) {
+              lista.push({ id: r.id, data: r.dataBaixa, descricao: `Baixa Receber: ${r.descricao}`, tipo: "credito", valor: r.valorParcela || r.total });
+            }
+          }
+        });
+
+        return lista.sort((a, b) => a.data.localeCompare(b.data));
+      }, [concilExibido, concilContaId, concilDataIni, concilDataFim, contasPagar, contasReceber]);
+
+      const resumoDiarioConcil = useMemo(() => {
+        const grupos = {};
+        movimentacoesConciliacao.forEach(m => {
+          if (!grupos[m.data]) grupos[m.data] = { data: m.data, debitos: 0, creditos: 0, itens: [] };
+          if (m.tipo === "debito") grupos[m.data].debitos += m.valor;
+          else grupos[m.data].creditos += m.valor;
+          grupos[m.data].itens.push(m);
+        });
+        return Object.values(grupos).sort((a, b) => a.data.localeCompare(b.data));
+      }, [movimentacoesConciliacao]);
+
+      const totalDebitosConcil = movimentacoesConciliacao.filter(m => m.tipo === "debito").reduce((s, m) => s + m.valor, 0);
+      const totalCreditosConcil = movimentacoesConciliacao.filter(m => m.tipo === "credito").reduce((s, m) => s + m.valor, 0);
+      const saldoFinalConcil = totalCreditosConcil - totalDebitosConcil;
+
+      const calendarioDiasDoMes = useMemo(() => {
+        const [ano, mes] = concilCalMes.split("-").map(Number);
+        const ultimoDia = new Date(ano, mes, 0).getDate();
+        const dias = [];
+        for (let d = 1; d <= ultimoDia; d++) {
+          const strD = `${ano}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          let deb = 0; let cred = 0;
+          if (concilContaId) {
+            contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa === strD) deb += (p.valorParcela || p.total); });
+            contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += (r.valorParcela || r.total); });
+          }
+          dias.push({ data: strD, diaNum: d, debitos: deb, creditos: cred });
+        }
+        return dias;
+      }, [concilCalMes, concilContaId, contasPagar, contasReceber]);
+
+      const totalMesPagarRelatorio = useMemo(() => contasPagarForMonth.reduce((s, p) => s + p.valorParcela, 0), [contasPagarForMonth]);
+      const totalMesReceberRelatorio = useMemo(() => contasReceberForMonth.reduce((s, p) => s + p.valorParcela, 0), [contasReceberForMonth]);
 
       function exportToExcel() {
         if (installmentsForMonth.length === 0) return alert("Sem lançamentos para exportar.");
@@ -1136,6 +1078,8 @@
           th.right, td.right { text-align: right; }
           th.center, td.center { text-align: center; }
           .badge { font-size: 11px; padding: 2px 6px; background: var(--paper); border-radius: 4px; color: var(--ink-soft); white-space: nowrap; }
+          .badge.baixado { background: #D1FAE5; color: #065F46; }
+          .badge.aberto { background: #FEF3C7; color: #92400E; }
           .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
           
           .lock-btn { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 5px; font-size: 13px; cursor: pointer; border: 1px solid var(--line); background: #fff; color: var(--ink); }
@@ -1188,7 +1132,9 @@
             h('div', { className: 'sidebar-nav' },
               h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, h(FolderTree, { size: 18 }), " Cadastros"),
               h('button', { className: screen === "lancamentos" ? "active" : "", onClick: () => setScreen("lancamentos") }, h(CreditCard, { size: 18 }), " Lançamentos"),
-              h('button', { className: screen === "faturas" ? "active" : "", onClick: () => setScreen("faturas") }, h(FileText, { size: 18 }), " Faturas")
+              h('button', { className: screen === "faturas" ? "active" : "", onClick: () => setScreen("faturas") }, h(FileText, { size: 18 }), " Faturas"),
+              h('button', { className: screen === "relatorios" ? "active" : "", onClick: () => setScreen("relatorios") }, h(BarChart3, { size: 18 }), " Relatórios"),
+              h('button', { className: screen === "conciliacao" ? "active" : "", onClick: () => setScreen("conciliacao") }, h(RefreshCw, { size: 18 }), " Conciliação Bancária")
             )
           ),
           h('div', { className: 'sidebar-footer' },
@@ -1510,112 +1456,120 @@
                     h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'purchase', id: p.id, purchase: p, title: 'Excluir Lançamento', message: '' }), disabled: fechadaAtual }, h(Trash2, { size: 14 }))
                   )
                 ))
-              ),
-
-              h('div', { className: 'ending-box', style: { marginTop: 24 } },
-                h('div', { className: 'ending-title', style: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 } },
-                  h(Sparkles, { size: 16 }), ` Parcelas que terminam este mês (${parcelasTerminandoEsteMes.length})`
-                ),
-                parcelasTerminandoEsteMes.length === 0 ? h('div', { style: { color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma parcela financiada (> 1x) finaliza nesta competência.") : h('div', null,
-                  h('div', { style: { marginBottom: 10, fontWeight: 500, fontSize: 14 } },
-                    "Valor total liberado com o término destas parcelas: ",
-                    h('span', { className: 'num', style: { color: 'var(--green)', fontSize: 16, fontWeight: 600 } }, formatBRL(totalTerminandoEsteMes))
-                  ),
-                  h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 } },
-                    parcelasTerminandoEsteMes.map(p => h('div', { key: `end-${p.id}`, style: { display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px solid #E5E0D5', paddingBottom: 4 } },
-                      h('span', null, `${p.descricao} (${p.index}/${p.parcelas})`),
-                      h('span', { className: 'num', style: { fontWeight: 600 } }, formatBRL(p.valorParcela))
-                    ))
-                  )
-                )
               )
             ),
 
             lancamentoTab === "pagar" && h(React.Fragment, null,
               h('div', { className: 'top', style: { margin: 0, border: 'none', background: 'transparent', padding: 0 } },
                 h('div', { className: 'brand' },
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowDownCircle), " Contas a Pagar")
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowDownCircle), " Contas a Pagar"),
+                  h('div', { style: { display: 'flex', gap: 8 } },
+                    batchPagarIds.length > 0 && h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "" }) }, `Baixar Selecionados (${batchPagarIds.length})`),
+                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar")
+                  )
                 ),
                 h('div', { className: 'nav-month' },
                   h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)),
                   h('div', { className: 'month-label' }, formatMonthLabel(month)),
                   h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))
                 ),
-                h('div', { className: 'total-mes num' }, formatBRL(totalPagarMes)),
+                h('div', { className: 'total-mes num' }, formatBRL(totalMesPagarRelatorio)),
                 h('div', { className: 'total-sub' }, `${contasPagarForMonth.length} conta(s) a pagar neste mês`),
 
-                h('div', { style: { marginTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                  h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Lista de Contas a Pagar`),
-                  h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar")
-                ),
-
-                contasPagarForMonth.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma conta a pagar para este mês.") :
-                contasPagarForMonth.map((p) => {
-                  const cat = getCategoria(p.categoriaId);
-                  const sub = getSubcategoria(p.categoriaId, p.subcategoriaId);
-                  return h('div', { className: 'purchase-row', key: `pagar-${p.id}` },
-                    h('div', null,
-                      h('div', { style: { fontWeight: 500 } }, p.descricao),
-                      h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `${cat?.nome || '-'} > ${sub?.nome || '-'} • Parcela ${p.index}/${p.parcelas}`)
-                    ),
-                    h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
-                      h('span', { className: 'num', style: { fontWeight: 600 } }, formatBRL(p.valorParcela)),
-                      h('button', { type: 'button', className: 'action-btn', onClick: () => {
-                        setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
-                        setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ','));
-                        setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
-                        setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString());
-                        setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
-                        setModalOpen(true);
-                      } }, h(Pencil, { size: 14 })),
-                      h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'pagar', id: p.id, title: 'Excluir Conta a Pagar', message: `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
-                    )
-                  );
-                })
+                h('div', { className: 'list-vertical' },
+                  contasPagarForMonth.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma conta a pagar para este mês.") :
+                  contasPagarForMonth.map((p) => {
+                    const cat = getCategoria(p.categoriaId);
+                    const sub = getSubcategoria(p.categoriaId, p.subcategoriaId);
+                    const bancoBaixa = getConta(p.bancoBaixaId);
+                    const isChecked = batchPagarIds.includes(p.id);
+                    const isBaixado = p.status === "Baixado";
+                    return h('div', { className: 'list-item', key: `pagar-${p.id}`, style: { background: isChecked ? 'var(--paper)' : '#fff' } },
+                      h('div', { className: 'list-item-main', style: { alignItems: 'flex-start' } },
+                        h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
+                          !isBaixado && h('input', { type: 'checkbox', checked: isChecked, onChange: () => setBatchPagarIds(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id]) }),
+                          h('div', null,
+                            h('div', { style: { fontWeight: 500, fontSize: 15 } }, p.descricao),
+                            h('div', { style: { fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 } }, `${cat?.nome || '-'} > ${sub?.nome || '-'} • Parcela ${p.index}/${p.parcelas}`),
+                            h('div', { style: { marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' } },
+                              h('span', { className: `badge ${isBaixado ? 'baixado' : 'aberto'}` }, isBaixado ? `Baixado em ${formatDateBR(p.dataBaixa)} (${bancoBaixa?.nome || 'Banco'})` : 'Em aberto')
+                            )
+                          )
+                        ),
+                        h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                          h('span', { className: 'num', style: { fontWeight: 600, fontSize: 16 } }, formatBRL(p.valorParcela)),
+                          !isBaixado && h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'pagar', id: p.id, bancoId: contasBancarias[0]?.id || "" }) }, "Baixar"),
+                          h('button', { type: 'button', className: 'action-btn', onClick: () => {
+                            setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
+                            setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ','));
+                            setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
+                            setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString());
+                            setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
+                            setModalOpen(true);
+                          } }, h(Pencil, { size: 14 })),
+                          h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'pagar', id: p.id, title: 'Excluir Conta a Pagar', message: `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
+                        )
+                      )
+                    );
+                  })
+                )
               )
             ),
 
             lancamentoTab === "receber" && h(React.Fragment, null,
               h('div', { className: 'top', style: { margin: 0, border: 'none', background: 'transparent', padding: 0 } },
                 h('div', { className: 'brand' },
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowUpCircle), " Contas a Receber")
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowUpCircle), " Contas a Receber"),
+                  h('div', { style: { display: 'flex', gap: 8 } },
+                    batchReceberIds.length > 0 && h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "" }) }, `Baixar Selecionados (${batchReceberIds.length})`),
+                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber")
+                  )
                 ),
                 h('div', { className: 'nav-month' },
                   h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)),
                   h('div', { className: 'month-label' }, formatMonthLabel(month)),
                   h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))
                 ),
-                h('div', { className: 'total-mes num' }, formatBRL(totalReceberMes)),
+                h('div', { className: 'total-mes num' }, formatBRL(totalMesReceberRelatorio)),
                 h('div', { className: 'total-sub' }, `${contasReceberForMonth.length} receita(s) a receber neste mês`),
 
-                h('div', { style: { marginTop: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                  h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Lista de Contas a Receber`),
-                  h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber")
-                ),
-
-                contasReceberForMonth.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma conta a receber para este mês.") :
-                contasReceberForMonth.map((p) => {
-                  const cat = getCategoria(p.categoriaId);
-                  const sub = getSubcategoria(p.categoriaId, p.subcategoriaId);
-                  return h('div', { className: 'purchase-row', key: `receber-${p.id}` },
-                    h('div', null,
-                      h('div', { style: { fontWeight: 500 } }, p.descricao),
-                      h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `${cat?.nome || '-'} > ${sub?.nome || '-'} • Parcela ${p.index}/${p.parcelas}`)
-                    ),
-                    h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
-                      h('span', { className: 'num', style: { fontWeight: 600, color: 'var(--green)' } }, formatBRL(p.valorParcela)),
-                      h('button', { type: 'button', className: 'action-btn', onClick: () => {
-                        setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
-                        setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ','));
-                        setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
-                        setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString());
-                        setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
-                        setModalOpen(true);
-                      } }, h(Pencil, { size: 14 })),
-                      h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'receber', id: p.id, title: 'Excluir Conta a Receber', message: `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
-                    )
-                  );
-                })
+                h('div', { className: 'list-vertical' },
+                  contasReceberForMonth.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma conta a receber para este mês.") :
+                  contasReceberForMonth.map((p) => {
+                    const cat = getCategoria(p.categoriaId);
+                    const sub = getSubcategoria(p.categoriaId, p.subcategoriaId);
+                    const bancoBaixa = getConta(p.bancoBaixaId);
+                    const isChecked = batchReceberIds.includes(p.id);
+                    const isBaixado = p.status === "Baixado";
+                    return h('div', { className: 'list-item', key: `receber-${p.id}`, style: { background: isChecked ? 'var(--paper)' : '#fff' } },
+                      h('div', { className: 'list-item-main', style: { alignItems: 'flex-start' } },
+                        h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
+                          !isBaixado && h('input', { type: 'checkbox', checked: isChecked, onChange: () => setBatchReceberIds(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id]) }),
+                          h('div', null,
+                            h('div', { style: { fontWeight: 500, fontSize: 15 } }, p.descricao),
+                            h('div', { style: { fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 } }, `${cat?.nome || '-'} > ${sub?.nome || '-'} • Parcela ${p.index}/${p.parcelas}`),
+                            h('div', { style: { marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' } },
+                              h('span', { className: `badge ${isBaixado ? 'baixado' : 'aberto'}` }, isBaixado ? `Baixado em ${formatDateBR(p.dataBaixa)} (${bancoBaixa?.nome || 'Banco'})` : 'Em aberto')
+                            )
+                          )
+                        ),
+                        h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                          h('span', { className: 'num', style: { fontWeight: 600, fontSize: 16, color: 'var(--green)' } }, formatBRL(p.valorParcela)),
+                          !isBaixado && h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'receber', id: p.id, bancoId: contasBancarias[0]?.id || "" }) }, "Baixar"),
+                          h('button', { type: 'button', className: 'action-btn', onClick: () => {
+                            setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
+                            setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ','));
+                            setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
+                            setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString());
+                            setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
+                            setModalOpen(true);
+                          } }, h(Pencil, { size: 14 })),
+                          h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'receber', id: p.id, title: 'Excluir Conta a Receber', message: `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
+                        )
+                      )
+                    );
+                  })
+                )
               )
             )
           ),
@@ -1685,6 +1639,160 @@
                 )
               )
             )
+          ),
+
+          screen === "relatorios" && h('div', { className: 'form-card' },
+            h('div', { style: { fontSize: 18, fontWeight: 'bold', marginBottom: 14 } }, "Relatórios Financeiros"),
+            h('div', { className: 'sub-nav' },
+              h('button', { className: relatorioTab === "pagar" ? "active" : "", onClick: () => setRelatorioTab("pagar") }, "🔴 Contas a Pagar"),
+              h('button', { className: relatorioTab === "receber" ? "active" : "", onClick: () => setRelatorioTab("receber") }, "🟢 Contas a Receber")
+            ),
+            h('div', { className: 'nav-month', style: { marginBottom: 16 } },
+              h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)),
+              h('div', { className: 'month-label' }, formatMonthLabel(month)),
+              h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))
+            ),
+            relatorioTab === "pagar" && h(React.Fragment, null,
+              h('div', { className: 'total-mes num' }, formatBRL(totalMesPagarRelatorio)),
+              h('div', { className: 'total-sub', style: { marginBottom: 12 } }, `Total de Contas a Pagar para ${formatMonthLabel(month)}`),
+              h('table', null,
+                h('thead', null,
+                  h('tr', null,
+                    h('th', null, "Descrição"), h('th', null, "Categoria"), h('th', { className: 'center' }, "Parcela"), h('th', { className: 'center' }, "Status"), h('th', { className: 'right' }, "Valor")
+                  )
+                ),
+                h('tbody', null,
+                  contasPagarForMonth.length === 0 ? h('tr', null, h('td', { colSpan: 5, style: { textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhum registro.")) :
+                  contasPagarForMonth.map(p => {
+                    const cat = getCategoria(p.categoriaId);
+                    return h('tr', { key: `rel-pag-${p.id}` },
+                      h('td', null, p.descricao),
+                      h('td', null, cat?.nome || '-'),
+                      h('td', { className: 'center' }, h('span', { className: 'badge' }, `${p.index}/${p.parcelas}`)),
+                      h('td', { className: 'center' }, h('span', { className: `badge ${p.status === 'Baixado' ? 'baixado' : 'aberto'}` }, p.status || 'Em aberto')),
+                      h('td', { className: 'right num' }, formatBRL(p.valorParcela))
+                    );
+                  })
+                )
+              )
+            ),
+            relatorioTab === "receber" && h(React.Fragment, null,
+              h('div', { className: 'total-mes num' }, formatBRL(totalMesReceberRelatorio)),
+              h('div', { className: 'total-sub', style: { marginBottom: 12 } }, `Total de Contas a Receber para ${formatMonthLabel(month)}`),
+              h('table', null,
+                h('thead', null,
+                  h('tr', null,
+                    h('th', null, "Descrição"), h('th', null, "Categoria"), h('th', { className: 'center' }, "Parcela"), h('th', { className: 'center' }, "Status"), h('th', { className: 'right' }, "Valor")
+                  )
+                ),
+                h('tbody', null,
+                  contasReceberForMonth.length === 0 ? h('tr', null, h('td', { colSpan: 5, style: { textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhum registro.")) :
+                  contasReceberForMonth.map(p => {
+                    const cat = getCategoria(p.categoriaId);
+                    return h('tr', { key: `rel-rec-${p.id}` },
+                      h('td', null, p.descricao),
+                      h('td', null, cat?.nome || '-'),
+                      h('td', { className: 'center' }, h('span', { className: 'badge' }, `${p.index}/${p.parcelas}`)),
+                      h('td', { className: 'center' }, h('span', { className: `badge ${p.status === 'Baixado' ? 'baixado' : 'aberto'}` }, p.status || 'Em aberto')),
+                      h('td', { className: 'right num' }, formatBRL(p.valorParcela))
+                    );
+                  })
+                )
+              )
+            )
+          ),
+
+          screen === "conciliacao" && h('div', { className: 'form-card' },
+            h('div', { style: { fontSize: 18, fontWeight: 'bold', marginBottom: 14 } }, "Conciliação Bancária"),
+            h('div', { style: { display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 20, flexWrap: 'wrap' } },
+              h('div', { className: 'field' },
+                h('label', null, "Conta Bancária *"),
+                h('select', { value: concilContaId, onChange: e => setConcilContaId(e.target.value) },
+                  h('option', { value: "" }, "Selecione a conta..."),
+                  contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome))
+                )
+              ),
+              h('div', { className: 'field' },
+                h('label', null, "Data Inicial"),
+                h('input', { type: 'date', value: concilDataIni, onChange: e => setConcilDataIni(e.target.value) })
+              ),
+              h('div', { className: 'field' },
+                h('label', null, "Data Final"),
+                h('input', { type: 'date', value: concilDataFim, onChange: e => setConcilDataFim(e.target.value) })
+              ),
+              h('button', { type: 'button', className: 'primary', style: { height: 38 }, onClick: () => setConcilExibido(true) }, "Exibir")
+            ),
+
+            concilExibido && h(React.Fragment, null,
+              h('div', { style: { display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' } },
+                h('div', { className: 'top', style: { flex: 1, margin: 0, padding: 14 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Total Débitos (Pagamentos)"),
+                  h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold', color: 'var(--red)' } }, formatBRL(totalDebitosConcil))
+                ),
+                h('div', { className: 'top', style: { flex: 1, margin: 0, padding: 14 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Total Créditos (Recebimentos)"),
+                  h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold', color: 'var(--green)' } }, formatBRL(totalCreditosConcil))
+                ),
+                h('div', { className: 'top', style: { flex: 1, margin: 0, padding: 14 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Saldo Final da Conta"),
+                  h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold' } }, formatBRL(saldoFinalConcil))
+                )
+              ),
+
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
+                h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Movimentação Detalhada por Dia"),
+                h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+                  h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `Mês do Calendário:`),
+                  h('input', { type: 'month', value: concilCalMes, onChange: e => setConcilCalMes(e.target.value), style: { width: 140 } })
+                )
+              ),
+
+              /* Mini Calendário Diário */
+              h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8, marginBottom: 20 } },
+                calendarioDiasDoMes.map(d => {
+                  const fechado = isDiaFechado(d.data);
+                  const saldoDia = d.creditos - d.debitos;
+                  return h('div', { key: d.data, style: { background: '#fff', border: '1px solid var(--line)', borderRadius: 5, padding: 8, fontSize: 12 } },
+                    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', marginBottom: 4 } },
+                      h('span', null, formatDateBR(d.data)),
+                      h('button', { type: 'button', className: 'action-btn', style: { padding: 2, background: fechado ? 'var(--amber-soft)' : '#fff', borderColor: fechado ? 'var(--amber)' : 'var(--line)' }, onClick: (e) => toggleDiaFechado(d.data, e) },
+                        fechado ? h(Lock, { size: 10, color: 'var(--amber)' }) : h(Unlock, { size: 10, color: 'var(--green)' })
+                      )
+                    ),
+                    h('div', { style: { color: 'var(--red)', fontSize: 11 } }, `(-) ${formatBRL(d.debitos)}`),
+                    h('div', { style: { color: 'var(--green)', fontSize: 11 } }, `(+) ${formatBRL(d.creditos)}`),
+                    h('div', { className: 'num', style: { fontWeight: 'bold', marginTop: 4, borderTop: '1px solid var(--line)', pt: 2 } }, `Saldo: ${formatBRL(saldoDia)}`)
+                  );
+                })
+              ),
+
+              resumoDiarioConcil.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma movimentação encontrada para o período selecionado.") :
+              resumoDiarioConcil.map(grupo => h('div', { key: grupo.data, style: { marginBottom: 16, border: '1px solid var(--line)', borderRadius: 6, background: '#fff', padding: 12 } },
+                h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', borderBottom: '1px solid var(--line)', paddingBottom: 6, marginBottom: 8 } },
+                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+                    h('span', null, `📅 ${formatDateBR(grupo.data)}`),
+                    h('button', { type: 'button', className: 'action-btn', style: { padding: '2px 6px', background: isDiaFechado(grupo.data) ? 'var(--amber-soft)' : '#fff' }, onClick: (e) => toggleDiaFechado(grupo.data, e) },
+                      isDiaFechado(grupo.data) ? h(Lock, { size: 12, color: 'var(--amber)' }) : h(Unlock, { size: 12 })
+                    )
+                  ),
+                  h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `Débitos: ${formatBRL(grupo.debitos)} | Créditos: ${formatBRL(grupo.creditos)}`)
+                ),
+                h('table', { style: { marginTop: 0 } },
+                  h('thead', null,
+                    h('tr', null,
+                      h('th', null, "Descrição"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'right' }, "Valor")
+                    )
+                  ),
+                  h('tbody', null,
+                    grupo.itens.map(item => h('tr', { key: item.id },
+                      h('td', null, item.descricao),
+                      h('td', { className: 'center' }, h('span', { className: `badge ${item.tipo === 'debito' ? 'aberto' : 'baixado'}` }, item.tipo === 'debito' ? 'Débito (-) ' : 'Crédito (+) ')),
+                      h('td', { className: 'right num', style: { color: item.tipo === 'debito' ? 'var(--red)' : 'var(--green)', fontWeight: 'bold' } }, formatBRL(item.valor))
+                    ))
+                  )
+                )
+              ))
+            )
           )
 
         ),
@@ -1713,6 +1821,40 @@
                 h('button', { type: 'button', className: 'action-btn', onClick: () => setModalOpen(false) }, "Cancelar"),
                 h('button', { type: 'submit', className: 'primary' }, h(Plus), " Salvar")
               )
+            )
+          )
+        ),
+
+        baixaModal.open && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 360 } },
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Efetuar Baixa da Conta"),
+            h('div', { className: 'field', style: { marginBottom: 14 } },
+              h('label', null, "Selecione o Banco / Conta *"),
+              h('select', { value: baixaModal.bancoId, onChange: e => setBaixaModal({ ...baixaModal, bancoId: e.target.value }) },
+                h('option', { value: "" }, "Selecione..."),
+                contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome))
+              )
+            ),
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+              h('button', { type: 'button', className: 'action-btn', onClick: () => setBaixaModal({ open: false, type: null, id: null, bancoId: "" }) }, "Cancelar"),
+              h('button', { type: 'button', className: 'primary', onClick: () => executarBaixaIndividual(baixaModal.type, baixaModal.id, baixaModal.bancoId) }, "Confirmar Baixa")
+            )
+          )
+        ),
+
+        batchBaixaModal.open && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 360 } },
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Baixar Contas Selecionadas em Lote"),
+            h('div', { className: 'field', style: { marginBottom: 14 } },
+              h('label', null, "Selecione o Banco / Conta *"),
+              h('select', { value: batchBaixaModal.bancoId, onChange: e => setBatchBaixaModal({ ...batchBaixaModal, bancoId: e.target.value }) },
+                h('option', { value: "" }, "Selecione..."),
+                contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome))
+              )
+            ),
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+              h('button', { type: 'button', className: 'action-btn', onClick: () => setBatchBaixaModal({ open: false, bancoId: "" }) }, "Cancelar"),
+              h('button', { type: 'button', className: 'primary', onClick: () => executarBaixaLote(lancamentoTab, batchBaixaModal.bancoId, lancamentoTab === 'pagar' ? batchPagarIds : batchReceberIds) }, "Confirmar Baixa em Lote")
             )
           )
         ),
