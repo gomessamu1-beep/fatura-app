@@ -68,11 +68,6 @@
         h('rect', { width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' }), h('path', { d: 'M7 11V7a5 5 0 0 1 9.9-1' })
       );
     }
-    function Loader2({ size = 16, className = "" }) {
-      return h('svg', { width: size, height: size, className: className, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M21 12a9 9 0 1 1-6.219-8.56' })
-      );
-    }
     function XIcon({ size = 16 }) {
       return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
         h('path', { d: 'M18 6 6 18' }), h('path', { d: 'm6 6 12 12' })
@@ -86,11 +81,6 @@
     function Printer({ size = 16 }) {
       return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
         h('polyline', { points: '6 9 6 2 18 2 18 9' }), h('path', { d: 'M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2' }), h('rect', { width: '12', height: '8', x: '6', y: '14' })
-      );
-    }
-    function UploadCloud({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242' }), h('path', { d: 'M12 12v9' }), h('path', { d: 'm16 16-4-4-4 4' })
       );
     }
     function FolderTree({ size = 16 }) {
@@ -267,8 +257,6 @@
       const [batchConfirmText, setBatchConfirmText] = useState("");
       
       const [selectedIds, setSelectedIds] = useState([]);
-      const [isImportingPDF, setIsImportingPDF] = useState(false);
-      const [isImportingPlanilha, setIsImportingPlanilha] = useState(false);
       
       const fileInputRef = useRef(null);
       const planilhaInputRef = useRef(null);
@@ -799,8 +787,24 @@
       function handleConfirmDelete(option) {
         const { type, id, subId } = deleteModal;
         if (type === "purchase") updatePurchases(prev => prev.filter(p => p.id !== id));
-        else if (type === "pagar") updateContasPagar(prev => prev.filter(p => p.id !== id));
-        else if (type === "receber") updateContasReceber(prev => prev.filter(p => p.id !== id));
+        else if (type === "pagar") {
+          const item = contasPagar.find(p => p.id === id);
+          if (item && item.status === "Baixado") {
+            alert("Atenção: Este lançamento já está baixado e possui trava de segurança contra exclusão.");
+            setDeleteModal({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" });
+            return;
+          }
+          updateContasPagar(prev => prev.filter(p => p.id !== id));
+        }
+        else if (type === "receber") {
+          const item = contasReceber.find(p => p.id === id);
+          if (item && item.status === "Baixado") {
+            alert("Atenção: Este lançamento já está baixado e possui trava de segurança contra exclusão.");
+            setDeleteModal({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" });
+            return;
+          }
+          updateContasReceber(prev => prev.filter(p => p.id !== id));
+        }
         else if (type === "cartao") updateCartoes(prev => prev.filter(c => c.id !== id));
         else if (type === "conta") updateContasBancarias(prev => prev.filter(c => c.id !== id));
         else if (type === "categoria") updateCategorias(prev => prev.filter(c => c.id !== id));
@@ -915,6 +919,45 @@
         setBatchBaixaModal({ open: false, bancoId: "" });
       }
 
+      function executarEstornoBaixa(type, id, dataBaixa) {
+        if (dataBaixa && (isDiaFechado(dataBaixa) || isMesFechado(dataBaixa.substring(0, 7)))) {
+          alert("Não é possível estornar esta baixa pois o dia ou o mês correspondente encontram-se bloqueados/fechados.");
+          return;
+        }
+        if (!window.confirm("Deseja realmente estornar a baixa deste lançamento?")) return;
+
+        if (type === "pagar") {
+          updateContasPagar(prev => prev.map(p => p.id === id ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null } : p));
+        } else if (type === "receber") {
+          updateContasReceber(prev => prev.map(p => p.id === id ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null } : p));
+        }
+      }
+
+      function executarEstornoLote(type, ids) {
+        if (!ids || ids.length === 0) { alert("Nenhum item selecionado para estorno."); return; }
+        
+        const listaAlvo = type === "pagar" ? contasPagar : contasReceber;
+        for (const id of ids) {
+          const item = listaAlvo.find(i => i.id === id);
+          if (item && item.dataBaixa) {
+            if (isDiaFechado(item.dataBaixa) || isMesFechado(item.dataBaixa.substring(0, 7))) {
+              alert(`Estorno cancelado: Há itens na seleção cuja data de baixa (${formatDateBR(item.dataBaixa)}) ou mês está bloqueada.`);
+              return;
+            }
+          }
+        }
+
+        if (!window.confirm(`Deseja estornar a baixa dos ${ids.length} itens selecionados?`)) return;
+
+        if (type === "pagar") {
+          updateContasPagar(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null } : p));
+          setBatchPagarIds([]);
+        } else if (type === "receber") {
+          updateContasReceber(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null } : p));
+          setBatchReceberIds([]);
+        }
+      }
+
       const movimentacoesConciliacao = useMemo(() => {
         if (!concilExibido || !concilContaId) return [];
         const lista = [];
@@ -922,7 +965,7 @@
         contasPagar.forEach(p => {
           if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa) {
             if (p.dataBaixa >= concilDataIni && p.dataBaixa <= concilDataFim) {
-              lista.push({ id: p.id, data: p.dataBaixa, descricao: `Baixa Pagar: ${p.descricao}`, tipo: "debito", valor: p.valorParcela || p.total });
+              lista.push({ id: p.id, data: p.dataBaixa, descricao: `Baixa Pagar: ${p.descricao}`, tipo: "Débito", valorDebito: p.valorParcela || p.total, valorCredito: 0 });
             }
           }
         });
@@ -930,33 +973,40 @@
         contasReceber.forEach(r => {
           if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa) {
             if (r.dataBaixa >= concilDataIni && r.dataBaixa <= concilDataFim) {
-              lista.push({ id: r.id, data: r.dataBaixa, descricao: `Baixa Receber: ${r.descricao}`, tipo: "credito", valor: r.valorParcela || r.total });
+              lista.push({ id: r.id, data: r.dataBaixa, descricao: `Baixa Receber: ${r.descricao}`, tipo: "Crédito", valorDebito: 0, valorCredito: r.valorParcela || r.total });
             }
           }
         });
 
-        return lista.sort((a, b) => a.data.localeCompare(b.data));
+        lista.sort((a, b) => a.data.localeCompare(b.data));
+
+        let saldoAcumulado = 0;
+        return lista.map(item => {
+          saldoAcumulado += (item.valorCredito - item.valorDebito);
+          return { ...item, saldo: saldoAcumulado };
+        });
       }, [concilExibido, concilContaId, concilDataIni, concilDataFim, contasPagar, contasReceber]);
 
       const resumoDiarioConcil = useMemo(() => {
         const grupos = {};
         movimentacoesConciliacao.forEach(m => {
           if (!grupos[m.data]) grupos[m.data] = { data: m.data, debitos: 0, creditos: 0, itens: [] };
-          if (m.tipo === "debito") grupos[m.data].debitos += m.valor;
-          else grupos[m.data].creditos += m.valor;
+          grupos[m.data].debitos += m.valorDebito;
+          grupos[m.data].creditos += m.valorCredito;
           grupos[m.data].itens.push(m);
         });
         return Object.values(grupos).sort((a, b) => a.data.localeCompare(b.data));
       }, [movimentacoesConciliacao]);
 
-      const totalDebitosConcil = movimentacoesConciliacao.filter(m => m.tipo === "debito").reduce((s, m) => s + m.valor, 0);
-      const totalCreditosConcil = movimentacoesConciliacao.filter(m => m.tipo === "credito").reduce((s, m) => s + m.valor, 0);
+      const totalDebitosConcil = movimentacoesConciliacao.reduce((s, m) => s + m.valorDebito, 0);
+      const totalCreditosConcil = movimentacoesConciliacao.reduce((s, m) => s + m.valorCredito, 0);
       const saldoFinalConcil = totalCreditosConcil - totalDebitosConcil;
 
       const calendarioDiasDoMes = useMemo(() => {
         const [ano, mes] = concilCalMes.split("-").map(Number);
         const ultimoDia = new Date(ano, mes, 0).getDate();
         const dias = [];
+        let acumulado = 0;
         for (let d = 1; d <= ultimoDia; d++) {
           const strD = `${ano}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
           let deb = 0; let cred = 0;
@@ -964,13 +1014,42 @@
             contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa === strD) deb += (p.valorParcela || p.total); });
             contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += (r.valorParcela || r.total); });
           }
-          dias.push({ data: strD, diaNum: d, debitos: deb, creditos: cred });
+          acumulado += (cred - deb);
+          dias.push({ data: strD, diaNum: d, debitos: deb, creditos: cred, saldo: acumulado });
         }
         return dias;
       }, [concilCalMes, concilContaId, contasPagar, contasReceber]);
 
       const totalMesPagarRelatorio = useMemo(() => contasPagarForMonth.reduce((s, p) => s + p.valorParcela, 0), [contasPagarForMonth]);
       const totalMesReceberRelatorio = useMemo(() => contasReceberForMonth.reduce((s, p) => s + p.valorParcela, 0), [contasReceberForMonth]);
+
+      function exportRelatorioExcel() {
+        const lista = relatorioTab === "pagar" ? contasPagarForMonth : contasReceberForMonth;
+        if (lista.length === 0) return alert("Sem dados para exportar.");
+        let csv = `\uFEFFDescrição;Categoria;Parcela;Status;Valor\n`;
+        lista.forEach(p => {
+          const cat = getCategoria(p.categoriaId);
+          csv += `"${p.descricao}";"${cat?.nome || ''}";"${p.index}/${p.parcelas}";"${p.status || 'Em aberto'}";${p.valorParcela.toFixed(2).replace('.', ',')}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `relatorio_${relatorioTab}_${month}.csv`;
+        a.click();
+      }
+
+      function exportConciliacaoExcel() {
+        if (movimentacoesConciliacao.length === 0) return alert("Sem movimentações para exportar.");
+        let csv = `\uFEFFData;Descrição;Tipo;Débito;Crédito;Saldo\n`;
+        movimentacoesConciliacao.forEach(m => {
+          csv += `${formatDateBR(m.data)};"${m.descricao}";"${m.tipo}";${m.valorDebito ? m.valorDebito.toFixed(2).replace('.', ',') : '0,00'};${m.valorCredito ? m.valorCredito.toFixed(2).replace('.', ',') : '0,00'};${m.saldo.toFixed(2).replace('.', ',')}\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `conciliacao_${concilContaId}_${concilDataIni}_ate_${concilDataFim}.csv`;
+        a.click();
+      }
 
       function exportToExcel() {
         if (installmentsForMonth.length === 0) return alert("Sem lançamentos para exportar.");
@@ -989,7 +1068,7 @@
       }
 
       function exportToPDF() {
-        if (installmentsForMonth.length === 0) return alert("Sem lançamentos para imprimir.");
+        if (installmentsForMonth.length === 0 && contasPagarForMonth.length === 0 && contasReceberForMonth.length === 0 && movimentacoesConciliacao.length === 0) return alert("Sem dados para imprimir.");
         window.print();
       }
 
@@ -1052,9 +1131,6 @@
           .total-mes { font-size: 40px; font-weight: bold; margin-top: 10px; }
           .total-sub { color: var(--ink-soft); font-size: 13px; }
           
-          .ending-box { background: #F6F4EE; border: 1px dashed var(--line); border-radius: 6px; padding: 12px 16px; margin-top: 20px; font-size: 13px; }
-          .ending-title { font-weight: 600; display: flex; align-items: center; gap: 6px; color: var(--green); margin-bottom: 6px; }
-
           table { width: 100%; border-collapse: collapse; margin-top: 16px; }
           th, td { padding: 10px 6px; border-bottom: 1px solid var(--line); font-size: 13px; text-align: left; }
           th.right, td.right { text-align: right; }
@@ -1099,9 +1175,9 @@
 
           @media print {
             body { background: #fff !important; }
-            .sidebar, .form-card, .export-buttons, button { display: none !important; }
-            .main-content { padding: 0 !important; width: 100% !important; }
-            .top { border: none !important; background: #fff !important; padding: 0 !important; }
+            .sidebar, .form-card > div:first-child, .export-buttons, button, .sub-nav, .nav-month { display: none !important; }
+            .main-content { padding: 0 !important; width: 100% !important; max-width: none !important; }
+            .top, .form-card { border: none !important; background: #fff !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
           }
         `),
 
@@ -1438,7 +1514,10 @@
                 h('div', { className: 'brand' },
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowDownCircle), " Contas a Pagar"),
                   h('div', { style: { display: 'flex', gap: 8 } },
-                    batchPagarIds.length > 0 && h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "" }) }, `Baixar Selecionados (${batchPagarIds.length})`),
+                    batchPagarIds.length > 0 && h('div', { style: { display: 'flex', gap: 6 } },
+                      h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "" }) }, `Baixar Selecionados (${batchPagarIds.length})`),
+                      h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('pagar', batchPagarIds) }, `Estornar Baixa (${batchPagarIds.length})`)
+                    ),
                     h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar")
                   )
                 ),
@@ -1461,7 +1540,7 @@
                     return h('div', { className: 'list-item', key: `pagar-${p.id}`, style: { background: isChecked ? 'var(--paper)' : '#fff' } },
                       h('div', { className: 'list-item-main', style: { alignItems: 'flex-start' } },
                         h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
-                          !isBaixado && h('input', { type: 'checkbox', checked: isChecked, onChange: () => setBatchPagarIds(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id]) }),
+                          h('input', { type: 'checkbox', checked: isChecked, onChange: () => setBatchPagarIds(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id]) }),
                           h('div', null,
                             h('div', { style: { fontWeight: 500, fontSize: 15 } }, p.descricao),
                             h('div', { style: { fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 } }, `${cat?.nome || '-'} > ${sub?.nome || '-'} • Parcela ${p.index}/${p.parcelas}`),
@@ -1472,7 +1551,9 @@
                         ),
                         h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
                           h('span', { className: 'num', style: { fontWeight: 600, fontSize: 16 } }, formatBRL(p.valorParcela)),
-                          !isBaixado && h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'pagar', id: p.id, bancoId: contasBancarias[0]?.id || "" }) }, "Baixar"),
+                          !isBaixado ? 
+                            h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'pagar', id: p.id, bancoId: contasBancarias[0]?.id || "" }) }, "Baixar") :
+                            h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => executarEstornoBaixa('pagar', p.id, p.dataBaixa) }, "Estornar Baixa"),
                           h('button', { type: 'button', className: 'action-btn', onClick: () => {
                             setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
                             setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ','));
@@ -1481,7 +1562,7 @@
                             setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
                             setModalOpen(true);
                           } }, h(Pencil, { size: 14 })),
-                          h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'pagar', id: p.id, title: 'Excluir Conta a Pagar', message: `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
+                          h('button', { type: 'button', className: 'action-btn delete', title: isBaixado ? 'Baixado: Exclusão bloqueada por trava de segurança' : 'Excluir', onClick: () => setDeleteModal({ open: true, type: 'pagar', id: p.id, title: 'Excluir Conta a Pagar', message: isBaixado ? 'ERRO: Este lançamento já está baixado e possui trava de segurança contra exclusão.' : `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
                         )
                       )
                     );
@@ -1495,7 +1576,10 @@
                 h('div', { className: 'brand' },
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowUpCircle), " Contas a Receber"),
                   h('div', { style: { display: 'flex', gap: 8 } },
-                    batchReceberIds.length > 0 && h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "" }) }, `Baixar Selecionados (${batchReceberIds.length})`),
+                    batchReceberIds.length > 0 && h('div', { style: { display: 'flex', gap: 6 } },
+                      h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "" }) }, `Baixar Selecionados (${batchReceberIds.length})`),
+                      h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('receber', batchReceberIds) }, `Estornar Baixa (${batchReceberIds.length})`)
+                    ),
                     h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber")
                   )
                 ),
@@ -1518,7 +1602,7 @@
                     return h('div', { className: 'list-item', key: `receber-${p.id}`, style: { background: isChecked ? 'var(--paper)' : '#fff' } },
                       h('div', { className: 'list-item-main', style: { alignItems: 'flex-start' } },
                         h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
-                          !isBaixado && h('input', { type: 'checkbox', checked: isChecked, onChange: () => setBatchReceberIds(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id]) }),
+                          h('input', { type: 'checkbox', checked: isChecked, onChange: () => setBatchReceberIds(prev => prev.includes(p.id) ? prev.filter(i => i !== p.id) : [...prev, p.id]) }),
                           h('div', null,
                             h('div', { style: { fontWeight: 500, fontSize: 15 } }, p.descricao),
                             h('div', { style: { fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 } }, `${cat?.nome || '-'} > ${sub?.nome || '-'} • Parcela ${p.index}/${p.parcelas}`),
@@ -1529,7 +1613,9 @@
                         ),
                         h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
                           h('span', { className: 'num', style: { fontWeight: 600, fontSize: 16, color: 'var(--green)' } }, formatBRL(p.valorParcela)),
-                          !isBaixado && h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'receber', id: p.id, bancoId: contasBancarias[0]?.id || "" }) }, "Baixar"),
+                          !isBaixado ?
+                            h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'receber', id: p.id, bancoId: contasBancarias[0]?.id || "" }) }, "Baixar") :
+                            h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => executarEstornoBaixa('receber', p.id, p.dataBaixa) }, "Estornar Baixa"),
                           h('button', { type: 'button', className: 'action-btn', onClick: () => {
                             setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
                             setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ','));
@@ -1538,7 +1624,7 @@
                             setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
                             setModalOpen(true);
                           } }, h(Pencil, { size: 14 })),
-                          h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'receber', id: p.id, title: 'Excluir Conta a Receber', message: `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
+                          h('button', { type: 'button', className: 'action-btn delete', title: isBaixado ? 'Baixado: Exclusão bloqueada por trava de segurança' : 'Excluir', onClick: () => setDeleteModal({ open: true, type: 'receber', id: p.id, title: 'Excluir Conta a Receber', message: isBaixado ? 'ERRO: Este lançamento já está baixado e possui trava de segurança contra exclusão.' : `Excluir ${p.descricao}?` }) }, h(Trash2, { size: 14 }))
                         )
                       )
                     );
@@ -1616,7 +1702,13 @@
           ),
 
           screen === "relatorios" && h('div', { className: 'form-card' },
-            h('div', { style: { fontSize: 18, fontWeight: 'bold', marginBottom: 14 } }, "Relatórios Financeiros"),
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
+              h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Relatórios Financeiros"),
+              h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
+                h('button', { type: 'button', className: 'action-btn', onClick: exportRelatorioExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
+                h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " PDF / Imprimir")
+              )
+            ),
             h('div', { className: 'sub-nav' },
               h('button', { className: relatorioTab === "pagar" ? "active" : "", onClick: () => setRelatorioTab("pagar") }, "🔴 Contas a Pagar"),
               h('button', { className: relatorioTab === "receber" ? "active" : "", onClick: () => setRelatorioTab("receber") }, "🟢 Contas a Receber")
@@ -1647,6 +1739,12 @@
                       h('td', { className: 'right num' }, formatBRL(p.valorParcela))
                     );
                   })
+                ),
+                h('tfoot', null,
+                  h('tr', { style: { fontWeight: 'bold', background: '#F2EFE9' } },
+                    h('td', { colSpan: '4', style: { textAlign: 'right' } }, "Total Geral:"),
+                    h('td', { className: 'right num' }, formatBRL(totalMesPagarRelatorio))
+                  )
                 )
               )
             ),
@@ -1671,13 +1769,25 @@
                       h('td', { className: 'right num' }, formatBRL(p.valorParcela))
                     );
                   })
+                ),
+                h('tfoot', null,
+                  h('tr', { style: { fontWeight: 'bold', background: '#F2EFE9' } },
+                    h('td', { colSpan: '4', style: { textAlign: 'right' } }, "Total Geral:"),
+                    h('td', { className: 'right num' }, formatBRL(totalMesReceberRelatorio))
+                  )
                 )
               )
             )
           ),
 
           screen === "conciliacao" && h('div', { className: 'form-card' },
-            h('div', { style: { fontSize: 18, fontWeight: 'bold', marginBottom: 14 } }, "Conciliação Bancária"),
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
+              h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Conciliação Bancária"),
+              concilExibido && h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
+                h('button', { type: 'button', className: 'action-btn', onClick: exportConciliacaoExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
+                h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " PDF / Imprimir Movimentação")
+              )
+            ),
             h('div', { style: { display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 20, flexWrap: 'wrap' } },
               h('div', { className: 'field' },
                 h('label', null, "Conta Bancária *"),
@@ -1717,7 +1827,8 @@
                 h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Movimentação Detalhada por Dia"),
                 h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
                   h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `Mês do Calendário:`),
-                  h('input', { type: 'month', value: concilCalMes, onChange: e => setConcilCalMes(e.target.value), style: { width: 140 } })
+                  h('input', { type: 'month', value: concilCalMes, onChange: e => setConcilCalMes(e.target.value), style: { width: 140 } }),
+                  h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF, title: 'Imprimir Calendário em PDF' }, h(Printer, { size: 14 }), " Imprimir Calendário")
                 )
               ),
 
@@ -1725,7 +1836,6 @@
               h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8, marginBottom: 20 } },
                 calendarioDiasDoMes.map(d => {
                   const fechado = isDiaFechado(d.data);
-                  const saldoDia = d.creditos - d.debitos;
                   return h('div', { key: d.data, style: { background: '#fff', border: '1px solid var(--line)', borderRadius: 5, padding: 8, fontSize: 12 } },
                     h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', marginBottom: 4 } },
                       h('span', null, formatDateBR(d.data)),
@@ -1735,7 +1845,7 @@
                     ),
                     h('div', { style: { color: 'var(--red)', fontSize: 11 } }, `(-) ${formatBRL(d.debitos)}`),
                     h('div', { style: { color: 'var(--green)', fontSize: 11 } }, `(+) ${formatBRL(d.creditos)}`),
-                    h('div', { className: 'num', style: { fontWeight: 'bold', marginTop: 4, borderTop: '1px solid var(--line)', pt: 2 } }, `Saldo: ${formatBRL(saldoDia)}`)
+                    h('div', { className: 'num', style: { fontWeight: 'bold', marginTop: 4, borderTop: '1px solid var(--line)', paddingTop: 2 } }, `Saldo: ${formatBRL(d.saldo)}`)
                   );
                 })
               ),
@@ -1754,14 +1864,16 @@
                 h('table', { style: { marginTop: 0 } },
                   h('thead', null,
                     h('tr', null,
-                      h('th', null, "Descrição"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'right' }, "Valor")
+                      h('th', null, "Descrição"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'right' }, "Débito (-)"), h('th', { className: 'right' }, "Crédito (+)"), h('th', { className: 'right' }, "Saldo")
                     )
                   ),
                   h('tbody', null,
                     grupo.itens.map(item => h('tr', { key: item.id },
                       h('td', null, item.descricao),
-                      h('td', { className: 'center' }, h('span', { className: `badge ${item.tipo === 'debito' ? 'aberto' : 'baixado'}` }, item.tipo === 'debito' ? 'Débito (-) ' : 'Crédito (+) ')),
-                      h('td', { className: 'right num', style: { color: item.tipo === 'debito' ? 'var(--red)' : 'var(--green)', fontWeight: 'bold' } }, formatBRL(item.valor))
+                      h('td', { className: 'center' }, h('span', { className: `badge ${item.tipo === 'Débito' ? 'aberto' : 'baixado'}` }, item.tipo)),
+                      h('td', { className: 'right num', style: { color: 'var(--red)' } }, item.valorDebito ? formatBRL(item.valorDebito) : '-'),
+                      h('td', { className: 'right num', style: { color: 'var(--green)' } }, item.valorCredito ? formatBRL(item.valorCredito) : '-'),
+                      h('td', { className: 'right num', style: { fontWeight: 'bold' } }, formatBRL(item.saldo))
                     ))
                   )
                 )
@@ -1880,6 +1992,7 @@
             h('div', { style: { fontSize: 13, marginBottom: 14 } }, deleteModal.message || "Tem certeza que deseja excluir?"),
             h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' } },
               h('button', { type: 'button', className: 'action-btn', onClick: () => setDeleteModal({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" }) }, "Cancelar"),
+              deleteModal.message && deleteModal.message.includes("ERRO") ? null :
               h('button', { type: 'button', className: 'danger', onClick: () => handleConfirmDelete('all') }, "Excluir")
             )
           )
@@ -1917,7 +2030,7 @@
                 )
               ),
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
-                h('div', { className: 'field' }, h('label', null, "Número da Agência"), h('input', { type: 'text', value: novaContaAgencia, onChange: e => setNovoContaAgencia ? setNovoContaAgencia(e.target.value) : setNovaContaAgencia(e.target.value), placeholder: 'Ex: 1234' })),
+                h('div', { className: 'field' }, h('label', null, "Número da Agência"), h('input', { type: 'text', value: novaContaAgencia, onChange: e => setNovaContaAgencia(e.target.value), placeholder: 'Ex: 1234' })),
                 h('div', { className: 'field' }, h('label', null, "Número da Conta"), h('input', { type: 'text', value: novaContaNumero, onChange: e => setNovaContaNumero(e.target.value), placeholder: 'Ex: 56789-0' }))
               ),
               contaError && h('div', { style: { color: 'var(--red)', fontSize: 12 } }, contaError),
