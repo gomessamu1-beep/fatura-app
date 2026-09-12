@@ -201,7 +201,7 @@
       const [cadastroTab, setCadastroTab] = useState(() => localStorage.getItem('fatura-cadtab-v1') || "cartoes");
       const [month, setMonth] = useState(() => localStorage.getItem('fatura-month-v1') || currentMonth());
 
-useEffect(() => {
+      useEffect(() => {
         localStorage.setItem('fatura-screen-v1', screen);
         localStorage.setItem('fatura-cadtab-v1', cadastroTab);
         localStorage.setItem('fatura-month-v1', month);
@@ -209,10 +209,8 @@ useEffect(() => {
       
       const [modalOpen, setModalOpen] = useState(false);
       const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
-      // Atualizado para suportar a compra parcelada e mensagens dinâmicas
       const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" });
       
-      // Estados para edição de Categoria / Subcategoria
       const [editCategoriaModal, setEditCategoriaModal] = useState({ open: false, id: null, nome: "", cor: CARD_COLORS[0] });
       const [editSubcategoriaModal, setEditSubcategoriaModal] = useState({ open: false, catId: null, subId: null, nome: "" });
 
@@ -373,7 +371,6 @@ useEffect(() => {
           const qtdRestante = p.parcelas - pInicial + 1;
           if (idx < 0 || idx >= qtdRestante) return null;
           
-          // Verifica se este mês específico foi excluído individualmente
           const mesesExcluidos = p.mesesExcluidos || [];
           if (mesesExcluidos.includes(month)) return null;
 
@@ -392,7 +389,7 @@ useEffect(() => {
           const mesesExcluidos = p.mesesExcluidos || [];
           for (let i = 0; i < qtdRestante; i++) {
             const comp = addMonths(p.inicio, i);
-            if (mesesExcluidos.includes(comp)) continue; // Ignora mês excluído individualmente
+            if (mesesExcluidos.includes(comp)) continue;
             const numeroParcela = pInicial + i;
             if (!resumo[comp]) resumo[comp] = { competencia: comp, total: 0, qtd: 0 };
             resumo[comp].total += values[numeroParcela - 1];
@@ -1074,7 +1071,7 @@ useEffect(() => {
                 onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategoria(e); } },
                 style: { flex: 1, minWidth: 160 }, 
                 required: true 
-          }),
+            }),
              
               h('button', { type: 'submit', className: 'primary' }, h(Plus), " Cadastrar")
             ),
@@ -1099,18 +1096,18 @@ useEffect(() => {
                 )),
                 h('div', { className: 'add-subcat-form' },
                   h('input', { 
-                  type: 'text', 
-                  placeholder: '+ Adicionar subcategoria', 
-                  style: { padding: '4px 8px', fontSize: 12, flex: 1 }, 
-                  value: subInputs[cat.id] || "", 
-                  onChange: (e) => setSubInputs({ ...subInputs, [cat.id]: e.target.value }),
-                  onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubcategoria(cat.id); } }
-          }),          
+                    type: 'text', 
+                    placeholder: '+ Adicionar subcategoria', 
+                    style: { padding: '4px 8px', fontSize: 12, flex: 1 }, 
+                    value: subInputs[cat.id] || "", 
+                    onChange: (e) => setSubInputs({ ...subInputs, [cat.id]: e.target.value }),
+                    onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubcategoria(cat.id); } }
+                }),          
                   h('button', { type: 'button', className: 'primary', style: { padding: '4px 8px', fontSize: 12 }, onClick: () => handleAddSubcategoria(cat.id) }, "Incluir")
-              )
+                )
+              ))
             )
-          )
-        ),
+          ),
 
           cadastroTab === "depara" && h(React.Fragment, null,
             h('div', { style: { fontSize: 13, color: 'var(--ink-soft)', marginBottom: 12 } }, "Regras de De-Para obrigatórias para importação de PDF do Santander."),
@@ -1124,65 +1121,66 @@ useEffect(() => {
                 h('select', { value: novoDeparaCategoriaId, onChange: (e) => { setNovoDeparaCategoriaId(e.target.value); setNovoDeparaSubcategoriaId(""); }, required: true },
                   h('option', { value: "" }, "Selecione..."),
                   categorias.map(c => h('option', { key: c.id, value: c.id }, c.nome))
-              )
-            ),
+                )
+              ),
               h('div', { className: 'field' },
                 h('label', null, "Subcategoria *"),
                 h('select', { value: novoDeparaSubcategoriaId, onChange: (e) => setNovoDeparaSubcategoriaId(e.target.value), required: true },
                   h('option', { value: "" }, "Selecione..."),
                   subcategoriasDeparaDisponiveis.map(s => h('option', { key: s.id, value: s.id }, s.nome))
-            )
-            ),
-              h('button', { type: 'submit', className: 'primary', style: { height: 38 } }, h(Plus), " Adicionar")
-          ),
-          h('div', { className: 'list-vertical' },
-            deparaList.map((d) => {
-              const cat = getCategoria(d.categoriaId);
-              const sub = getSubcategoria(d.categoriaId, d.subcategoriaId);
-              return h('div', { className: 'list-item', key: d.id },
-                h('div', { className: 'list-item-main', style: { fontSize: 13 } },
-                  h('span', null, h('b', null, d.fatura), " ➔ ", cat?.nome, " > ", sub?.nome),
-                  h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'depara', id: d.id, title: 'Excluir Regra', message: 'Excluir regra De-Para?' }) }, h(Trash2, { size: 14 }))
                 )
-              );
-            })
-          )
-        ),
+              ),
+              h('button', { type: 'submit', className: 'primary', style: { height: 38 } }, h(Plus), " Adicionar")
+            ),
+            h('div', { className: 'list-vertical' },
+              deparaList.map((d) => {
+                const cat = getCategoria(d.categoriaId);
+                const sub = getSubcategoria(d.categoriaId, d.subcategoriaId);
+                return h('div', { className: 'list-item', key: d.id },
+                  h('div', { className: 'list-item-main', style: { fontSize: 13 } },
+                    h('span', null, h('b', null, d.fatura), " ➔ ", cat?.nome, " > ", sub?.nome),
+                    h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'depara', id: d.id, title: 'Excluir Regra', message: 'Excluir regra De-Para?' }) }, h(Trash2, { size: 14 }))
+                  )
+                );
+              })
+            )
+          ),
 
           cadastroTab === "importar-txt" && h(React.Fragment, null,
             h('div', { style: { fontSize: 13, color: 'var(--ink-soft)', marginBottom: 8 } }, "Cole abaixo o texto ou carregue um arquivo .txt contendo as suas categorias e subcategorias (subcategorias iniciadas com TAB ou hífen)."),
             h('div', { style: { display: 'flex', gap: 10, marginBottom: 10 } },
               h('input', { type: 'file', accept: '.txt', ref: txtInputRef, style: { display: 'none' }, onChange: handleUploadTxtFile }),
               h('button', { type: 'button', className: 'action-btn', onClick: () => txtInputRef.current && txtInputRef.current.click() }, "📁 Carregar arquivo .txt")
-          ),
+            ),
             h('form', { onSubmit: handleProcessarTxtCategorias, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
               h('textarea', { rows: 10, placeholder: 'Exemplo:\nAlimentação\n\t- Supermercado\n\t- Restaurante\nMoradia\n\t- Aluguel', value: txtCategoriasContent, onChange: (e) => setTxtCategoriasContent(e.target.value), required: true }),
               h('button', { type: 'submit', className: 'primary', style: { alignSelf: 'flex-start' } }, h(Plus), " Importar Categorias do TXT")
+            )
           )
         ),
 
-          screen === "lancamentos" && h(React.Fragment, null,
-            h('div', { className: 'top' },
-              h('div', { className: 'brand' },
-                h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(CreditCard), " Lançamentos do cartão"),
-                h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
-                  fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
-                  fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
+        screen === "lancamentos" && h(React.Fragment, null,
+          h('div', { className: 'top' },
+            h('div', { className: 'brand' },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(CreditCard), " Lançamentos do cartão"),
+              h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
+                fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
+                fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
               )
             ),
 
-              h('div', { className: 'nav-month' },
-                h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)),
-                h('div', { className: 'month-label' }, formatMonthLabel(month)),
-                h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))
+            h('div', { className: 'nav-month' },
+              h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)),
+              h('div', { className: 'month-label' }, formatMonthLabel(month)),
+              h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))
             ),
 
-              h('div', { className: 'total-mes num' }, formatBRL(totalMes)),
-              h('div', { className: 'total-sub', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 } },
-                h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
-                  h('span', null, installmentsForMonth.length === 0 ? "Nenhum lançamento neste mês" : `${installmentsForMonth.length} lançamento(s)`),
-                  selectedIds.length > 0 && h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) },
-                    h(Trash2, { size: 14 }), ` Excluir selecionados (${selectedIds.length})`
+            h('div', { className: 'total-mes num' }, formatBRL(totalMes)),
+            h('div', { className: 'total-sub', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 } },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+                h('span', null, installmentsForMonth.length === 0 ? "Nenhum lançamento neste mês" : `${installmentsForMonth.length} lançamento(s)`),
+                selectedIds.length > 0 && h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) },
+                  h(Trash2, { size: 14 }), ` Excluir selecionados (${selectedIds.length})`
                 )
               ),
               h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
