@@ -197,9 +197,15 @@
       const [deparaList, setDeparaList] = useState([]);
       const [faturasFechadas, setFaturasFechadas] = useState({});
       
-      const [screen, setScreen] = useState("cadastros");
-      const [cadastroTab, setCadastroTab] = useState("cartoes");
-      const [month, setMonth] = useState(currentMonth());
+      const [screen, setScreen] = useState(() => localStorage.getItem('fatura-screen-v1') || "cadastros");
+      const [cadastroTab, setCadastroTab] = useState(() => localStorage.getItem('fatura-cadtab-v1') || "cartoes");
+      const [month, setMonth] = useState(() => localStorage.getItem('fatura-month-v1') || currentMonth());
+
+useEffect(() => {
+        localStorage.setItem('fatura-screen-v1', screen);
+        localStorage.setItem('fatura-cadtab-v1', cadastroTab);
+        localStorage.setItem('fatura-month-v1', month);
+      }, [screen, cadastroTab, month]);   
       
       const [modalOpen, setModalOpen] = useState(false);
       const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
