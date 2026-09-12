@@ -1362,16 +1362,8 @@
                     )
                   ),
                   h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
-                    h('input', { type: 'file', accept: '.pdf', ref: fileInputRef, style: { display: 'none' }, onChange: handlePDFImport }),
-                    h('input', { type: 'file', accept: '.csv,.txt', ref: planilhaInputRef, style: { display: 'none' }, onChange: handlePlanilhaImport }),
-                    h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px', color: 'var(--green)', borderColor: 'var(--green)' }, onClick: () => fileInputRef.current && fileInputRef.current.click(), disabled: isImportingPDF || fechadaAtual },
-                      isImportingPDF ? h(Loader2, { size: 14, className: 'spin' }) : h(UploadCloud, { size: 14 }),
-                      isImportingPDF ? " Lendo PDF..." : " 📄 Importar Fatura Santander (PDF)"
-                    ),
-                    h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px', color: '#107c41', borderColor: '#107c41' }, onClick: () => planilhaInputRef.current && planilhaInputRef.current.click(), disabled: isImportingPlanilha || fechadaAtual },
-                      isImportingPlanilha ? h(Loader2, { size: 14, className: 'spin' }) : h(FileSpreadsheet, { size: 14 }),
-                      isImportingPlanilha ? " Lendo Planilha..." : " 📊 Importar Planilha (CSV)"
-                    ),
+                    h('input', { type: 'file', accept: '.pdf', ref: fileInputRef, style: { display: 'none' } }),
+                    h('input', { type: 'file', accept: '.csv,.txt', ref: planilhaInputRef, style: { display: 'none' } }),
                     h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
                     h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToPDF }, h(Printer, { size: 14 }), " PDF / Imprimir")
                   )
@@ -1925,7 +1917,7 @@
                 )
               ),
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
-                h('div', { className: 'field' }, h('label', null, "Número da Agência"), h('input', { type: 'text', value: novaContaAgencia, onChange: e => setNovaContaAgencia(e.target.value), placeholder: 'Ex: 1234' })),
+                h('div', { className: 'field' }, h('label', null, "Número da Agência"), h('input', { type: 'text', value: novaContaAgencia, onChange: e => setNovoContaAgencia ? setNovoContaAgencia(e.target.value) : setNovaContaAgencia(e.target.value), placeholder: 'Ex: 1234' })),
                 h('div', { className: 'field' }, h('label', null, "Número da Conta"), h('input', { type: 'text', value: novaContaNumero, onChange: e => setNovaContaNumero(e.target.value), placeholder: 'Ex: 56789-0' }))
               ),
               contaError && h('div', { style: { color: 'var(--red)', fontSize: 12 } }, contaError),
