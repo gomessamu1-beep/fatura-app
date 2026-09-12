@@ -3,324 +3,172 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lançamentos do Cartão</title>
-  
-  <!-- Supabase JS Client -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
+  <title>Samuel Gomes Consultoria - Gestão de Faturas</title>
   <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script>
-    if (window.pdfjsLib) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <!-- Supabase Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg-main: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --red: #ef4444;
+      --green: #22c55e;
     }
-  </script>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); padding: 16px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; background: var(--card-bg); padding: 16px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h1 { font-size: 20px; font-weight: bold; }
+    .nav-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .nav-tabs button { padding: 8px 16px; border: none; background: var(--border); color: var(--text-main); border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .nav-tabs button.active { background: var(--primary); color: white; }
+    .card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px; }
+    .form-row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .field { display: flex; flexDirection: column; flex: 1; min-width: 140px; }
+    .field label { font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted); }
+    input, select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+    button.primary { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    button.primary:hover { background: var(--primary-hover); }
+    button.danger { background: var(--red); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+    .purchase-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); }
+    .purchase-row:last-child { border-bottom: none; }
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: var(--card-bg); padding: 24px; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .color-swatches { display: flex; gap: 6px; margin-top: 4px; }
+    .color-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+    .color-swatch.selected { border-color: #000; }
+    .action-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px; }
+    .action-btn.delete:hover { color: var(--red); }
+  </style>
 </head>
-<body style="margin: 0; background-color: #ECE8DD;">
+<body>
   <div id="root"></div>
 
   <script>
-    const { createElement: h, useState, useEffect, useMemo, useRef } = React;
-    const supabaseUrl = 'https://odvntvvcgdoerewytvum.supabase.co';
-    const supabaseKey = 'sb_publishable_IssO3agsbMYN_V243zTbTg_Flm5TFZF';
-    const supabaseClient = window.supabase && window.supabase.createClient ? window.supabase.createClient(supabaseUrl, supabaseKey) : null;
+    const { useState, useEffect, useMemo } = React;
+    const h = React.createElement;
 
-    function CreditCard({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('rect', { width: '20', height: '14', x: '2', y: '5', rx: '2' }),
-        h('line', { x1: '2', x2: '22', y1: '10', y2: '10' })
-      );
-    }
-    function ChevronLeft({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'm15 18-6-6 6-6' })
-      );
-    }
-    function ChevronRight({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'm9 18 6-6-6-6' })
-      );
-    }
-    function Plus({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M5 12h14' }), h('path', { d: 'M12 5v14' })
-      );
-    }
-    function Trash2({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M3 6h18' }), h('path', { d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' }), h('path', { d: 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2' })
-      );
-    }
-    function Pencil({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z' }), h('path', { d: 'm15 5 4 4' })
-      );
-    }
-    function Lock({ size = 16, color }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color || 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('rect', { width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' }), h('path', { d: 'M7 11V7a5 5 0 0 1 10 0v4' })
-      );
-    }
-    function Unlock({ size = 16, color }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color || 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('rect', { width: '18', height: '11', x: '3', y: '11', rx: '2', ry: '2' }), h('path', { d: 'M7 11V7a5 5 0 0 1 9.9-1' })
-      );
-    }
-    function Loader2({ size = 16, className = "" }) {
-      return h('svg', { width: size, height: size, className: className, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M21 12a9 9 0 1 1-6.219-8.56' })
-      );
-    }
-    function XIcon({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M18 6 6 18' }), h('path', { d: 'm6 6 12 12' })
-      );
-    }
-    function Sparkles({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z' })
-      );
-    }
-    function FileSpreadsheet({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' }), h('path', { d: 'M14 2v4a2 2 0 0 0 2 2h4' }), h('path', { d: 'M8 13h2' }), h('path', { d: 'M14 13h2' }), h('path', { d: 'M8 17h2' }), h('path', { d: 'M14 17h2' })
-      );
-    }
-    function Printer({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('polyline', { points: '6 9 6 2 18 2 18 9' }), h('path', { d: 'M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2' }), h('rect', { width: '12', height: '8', x: '6', y: '14' })
-      );
-    }
-    function UploadCloud({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242' }), h('path', { d: 'M12 12v9' }), h('path', { d: 'm16 16-4-4-4 4' })
-      );
-    }
+    // Config Supabase
+    const SUPABASE_URL = "https://SEU_SUPABASE_URL.supabase.co";
+    const SUPABASE_KEY = "SUA_SUPABASE_KEY";
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const BANCOS_FEBRABAN = [
-      { code: "001", name: "001 - Banco do Brasil S.A." },
-      { code: "033", name: "033 - Banco Santander (Brasil) S.A." },
-      { code: "104", name: "104 - Caixa Econômica Federal" },
-      { code: "237", name: "237 - Banco Bradesco S.A." },
-      { code: "260", name: "260 - Nu Pagamentos S.A. (Nubank)" },
-      { code: "077", name: "077 - Banco Inter S.A." },
-      { code: "341", name: "341 - Itaú Unibanco S.A." },
-      { code: "208", name: "208 - Banco BTG Pactual S.A." },
-      { code: "336", name: "336 - C6 Bank S.A." },
-      { code: "290", name: "290 - PagBank (PagSeguro)" },
-      { code: "748", name: "748 - Banco Cooperativo Sicredi S.A." },
-      { code: "756", name: "756 - Banco Cooperativo Sicoob S.A." },
-      { code: "000", name: "Outro Banco / Customizado" }
+      { code: '001', name: 'Banco do Brasil' },
+      { code: '033', name: 'Santander' },
+      { code: '104', name: 'Caixa Econômica' },
+      { code: '237', name: 'Bradesco' },
+      { code: '341', name: 'Itaú Unibanco' },
+      { code: '077', name: 'Banco Inter' },
+      { code: '260', name: 'Nu Pagamentos (Nubank)' }
     ];
 
-    function BankIcon({ code, size = 18 }) {
-      return h(CreditCard, { size });
-    }
+    const CARD_COLORS = ['#1e293b', '#2563eb', '#16a34a', '#dc2626', '#9333ea', '#ea580c', '#0891b2'];
 
-    function splitInstallments(total, n) {
-      const totalCents = Math.round(total * 100);
-      const base = Math.floor(totalCents / n);
-      let remainder = totalCents - base * n;
-      const result = [];
-      for (let i = 0; i < n; i++) {
-        let val = base;
-        if (remainder > 0) { val += 1; remainder -= 1; }
-        result.push(val / 100);
-      }
-      return result;
-    }
-
-    function addMonths(yyyymm, delta) {
-      const parts = yyyymm.split("-").map(Number);
-      const d = new Date(parts[0], parts[1] - 1 + delta, 1);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    }
-
-    function monthDiff(fromYYYYMM, toYYYYMM) {
-      const f = fromYYYYMM.split("-").map(Number);
-      const t = toYYYYMM.split("-").map(Number);
-      return (t[0] - f[0]) * 12 + (t[1] - f[1]);
-    }
-
-    function formatMonthLabel(yyyymm) {
-      const parts = yyyymm.split("-").map(Number);
-      const d = new Date(parts[0], parts[1] - 1, 1);
-      const label = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-      return label.charAt(0).toUpperCase() + label.slice(1);
-    }
-
-    function formatDateBR(dateString) {
-      if (!dateString) return "";
-      const parts = dateString.split("-");
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
-    }
-
-    function formatBRL(v) {
-      return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    function currentDate() {
+      return new Date().toISOString().split('T')[0];
     }
 
     function currentMonth() {
-      const d = new Date();
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      return currentDate().slice(0, 7);
     }
 
-    function currentDate() {
-      const d = new Date();
-      return d.toISOString().split('T')[0];
+    function monthDiff(d1, d2) {
+      const [y1, m1] = d1.split('-').map(Number);
+      const [y2, m2] = d2.split('-').map(Number);
+      return (y2 - y1) * 12 + (m2 - m1);
     }
 
-    function parseValorInput(raw) {
-      if (!raw) return NaN;
-      const cleaned = raw.toString().replace(/\./g, "").replace(",", ".").replace(/[^\d.]/g, "");
-      return parseFloat(cleaned);
+    function splitInstallments(total, count) {
+      const base = Math.floor((total / count) * 100) / 100;
+      const arr = Array(count).fill(base);
+      const diff = Math.round((total - base * count) * 100);
+      for (let i = 0; i < Math.abs(diff); i++) {
+        arr[i] += diff > 0 ? 0.01 : -0.01;
+      }
+      return arr.map(v => Number(v.toFixed(2)));
     }
 
-    function uid() {
-      return Math.random().toString(36).slice(2, 10);
+    function formatBRL(val) {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
     }
-
-    const CARD_COLORS = ["#3C5A73", "#6B4226", "#7A6C46", "#4B4453", "#2F5233", "#8C3B2E"];
 
     function FaturaApp() {
+      // Sessão e Estados com Persistência
       const [session, setSession] = useState(null);
-      const [authLoading, setAuthLoading] = useState(true);
-      const [dataLoading, setDataLoading] = useState(false);
-      const [authEmail, setAuthEmail] = useState("");
-      const [authPassword, setAuthPassword] = useState("");
-      const [authError, setAuthError] = useState("");
+      const [screen, setScreen] = useState(() => localStorage.getItem('fatura-screen-v1') || "cadastros");
+      const [cadastroTab, setCadastroTab] = useState(() => localStorage.getItem('fatura-cadtab-v1') || "cartoes");
+      const [month, setMonth] = useState(() => localStorage.getItem('fatura-month-v1') || currentMonth());
 
       const [purchases, setPurchases] = useState([]);
       const [cartoes, setCartoes] = useState([]);
       const [categorias, setCategorias] = useState([]);
       const [deparaList, setDeparaList] = useState([]);
-      const [faturasFechadas, setFaturasFechadas] = useState({});
-      
-      const [screen, setScreen] = useState(() => localStorage.getItem('fatura-screen-v1') || "cadastros");
-      const [cadastroTab, setCadastroTab] = useState(() => localStorage.getItem('fatura-cadtab-v1') || "cartoes");
-      const [month, setMonth] = useState(() => localStorage.getItem('fatura-month-v1') || currentMonth());
+      const [faturasFechadas, setFaturasFechadas] = useState([]);
 
-useEffect(() => {
-        localStorage.setItem('fatura-screen-v1', screen);
-        localStorage.setItem('fatura-cadtab-v1', cadastroTab);
-        localStorage.setItem('fatura-month-v1', month);
-      }, [screen, cadastroTab, month]);   
-      
-      const [modalOpen, setModalOpen] = useState(false);
+      // Estados de Modais e Formulários
       const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
-      const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, title: "", message: "" });
-      
-      // Estados para edição de Categoria / Subcategoria
-      const [editCategoriaModal, setEditCategoriaModal] = useState({ open: false, id: null, nome: "", cor: CARD_COLORS[0] });
-      const [editSubcategoriaModal, setEditSubcategoriaModal] = useState({ open: false, catId: null, subId: null, nome: "" });
-
-      const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
-      const [batchConfirmText, setBatchConfirmText] = useState("");
-      
-      const [selectedIds, setSelectedIds] = useState([]);
-      const [isImportingPDF, setIsImportingPDF] = useState(false);
-      const [isImportingPlanilha, setIsImportingPlanilha] = useState(false);
-      
-      const fileInputRef = useRef(null);
-      const planilhaInputRef = useRef(null);
-      const [editingId, setEditingId] = useState(null);
-
-      const [txtCategoriasContent, setTxtCategoriasContent] = useState("");
-      const txtInputRef = useRef(null);
-
       const [editingCartaoId, setEditingCartaoId] = useState(null);
       const [novoCartaoNome, setNovoCartaoNome] = useState("");
-      const [novoCartaoBanco, setNovoCartaoBanco] = useState("033");
+      const [novoCartaoBanco, setNovoCartaoBanco] = useState("001");
       const [novoCartaoCor, setNovoCartaoCor] = useState(CARD_COLORS[0]);
       const [cartaoError, setCartaoError] = useState("");
 
-      const [novoDeparaFatura, setNovoDeparaFatura] = useState("");
-      const [novoDeparaImportacao, setNovoDeparaImportacao] = useState("");
-      const [novoDeparaCategoriaId, setNovoDeparaCategoriaId] = useState("");
-      const [novoDeparaSubcategoriaId, setNovoDeparaSubcategoriaId] = useState("");
-      const [deparaError, setDeparaError] = useState("");
-
-      const [descricao, setDescricao] = useState("");
-      const [valorTotal, setValorTotal] = useState("");
-      const [valorParcelaInput, setValorParcelaInput] = useState("");
-      const [dataLancamento, setDataLancamento] = useState(currentDate());
-      const [faturaMes, setFaturaMes] = useState(currentMonth());
-      const [parcelas, setParcelas] = useState("1");
-      const [parcelaAtual, setParcelaAtual] = useState("1");
-      const [cartaoId, setCartaoId] = useState("");
-      const [categoriaId, setCategoriaId] = useState("");
-      const [subcategoriaId, setSubcategoriaId] = useState("");
-      const [formError, setFormError] = useState("");
-
       const [novaCategoriaNome, setNovaCategoriaNome] = useState("");
-      const [novaCategoriaCor, setNovaCategoriaCor] = useState(CARD_COLORS[0]);
       const [subInputs, setSubInputs] = useState({});
 
+      const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" });
+
       useEffect(() => {
-        if (!supabaseClient) {
-          setAuthLoading(false);
-          return;
-        }
-        supabaseClient.auth.getSession().then(({ data: { session } }) => {
-          setSession(session);
-          setAuthLoading(false);
-          if (session) loadDataFromSupabase(session.user.id);
-        });
-
-        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-          setSession(session);
-          if (session) {
-            loadDataFromSupabase(session.user.id);
-          } else {
-            setPurchases([]);
-            setCartoes([]);
-            setCategorias([]);
-            setDeparaList([]);
-            setFaturasFechadas({});
-          }
-        });
-
+        supabaseClient.auth.getSession().then(({ data: { session } }) => setSession(session));
+        const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => setSession(session));
         return () => subscription.unsubscribe();
       }, []);
 
-      async function loadDataFromSupabase(userId) {
-        setDataLoading(true);
-        const { data } = await supabaseClient
-          .from('app_data')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
+      // Salvar navegação no LocalStorage
+      useEffect(() => {
+        localStorage.setItem('fatura-screen-v1', screen);
+        localStorage.setItem('fatura-cadtab-v1', cadastroTab);
+        localStorage.setItem('fatura-month-v1', month);
+      }, [screen, cadastroTab, month]);
 
+      useEffect(() => {
+        if (session) {
+          loadDataFromSupabase();
+        }
+      }, [session]);
+
+      async function loadDataFromSupabase() {
+        const userId = session.user.id;
+        const { data, error } = await supabaseClient.from('app_data').select('*').eq('user_id', userId).single();
         if (data) {
           setPurchases(data.purchases || []);
           setCartoes(data.cartoes || []);
           setCategorias(data.categorias || []);
           setDeparaList(data.depara || []);
-          setFaturasFechadas(data.faturas_fechadas || {});
-        } else {
-          await supabaseClient.from('app_data').upsert({
-            user_id: userId,
-            purchases: [],
-            cartoes: [],
-            categorias: [],
-            depara: [],
-            faturas_fechadas: {}
-          });
+          setFaturasFechadas(data.faturas_fechadas || []);
         }
-        setDataLoading(false);
       }
 
-      async function saveDataToSupabase(newPurchases, newCartoes, newCategorias, newDepara, newFechadas) {
+      async function saveDataToSupabase(newP, newC, newCat, newD, newF) {
         if (!session) return;
         const userId = session.user.id;
         await supabaseClient.from('app_data').upsert({
           user_id: userId,
-          purchases: newPurchases,
-          cartoes: newCartoes,
-          categorias: newCategorias,
-          depara: newDepara,
-          faturas_fechadas: newFechadas,
+          purchases: newP,
+          cartoes: newC,
+          categorias: newCat,
+          depara: newD,
+          faturas_fechadas: newF,
           updated_at: new Date()
         });
       }
@@ -357,14 +205,7 @@ useEffect(() => {
         });
       }
 
-      function updateFechadas(updater) {
-        setFaturasFechadas(prev => {
-          const next = typeof updater === 'function' ? updater(prev) : updater;
-          saveDataToSupabase(purchases, cartoes, categorias, deparaList, next);
-          return next;
-        });
-      }
-
+      // Cálculo de Parcelas do Mês
       const installmentsForMonth = useMemo(() => {
         return purchases.map(p => {
           const idx = monthDiff(p.inicio, month);
@@ -372,7 +213,6 @@ useEffect(() => {
           const qtdRestante = p.parcelas - pInicial + 1;
           if (idx < 0 || idx >= qtdRestante) return null;
           
-          // Verifica se esta competência específica foi excluída individualmente
           const mesesExcluidos = p.mesesExcluidos || [];
           if (mesesExcluidos.includes(month)) return null;
 
@@ -382,243 +222,37 @@ useEffect(() => {
         }).filter(Boolean).sort((a, b) => b.valorParcela - a.valorParcela);
       }, [purchases, month]);
 
-      const faturasAgrupadas = useMemo(() => {
-        const resumo = {};
-        purchases.forEach(p => {
-          const values = splitInstallments(p.total, p.parcelas);
-          const pInicial = p.parcelaInicial || 1;
-          const qtdRestante = p.parcelas - pInicial + 1;
-          for (let i = 0; i < qtdRestante; i++) {
-            const comp = addMonths(p.inicio, i);
-            const numeroParcela = pInicial + i;
-            if (!resumo[comp]) resumo[comp] = { competencia: comp, total: 0, qtd: 0 };
-            resumo[comp].total += values[numeroParcela - 1];
-            resumo[comp].qtd += 1;
-          }
-        });
-        return Object.values(resumo).sort((a, b) => a.competencia.localeCompare(b.competencia));
-      }, [purchases]);
-
-      const subcategoriasDisponiveis = useMemo(() => {
-        const cat = getCategoria(categoriaId);
-        return cat && cat.subcategorias ? cat.subcategorias : [];
-      }, [categoriaId, categorias]);
-
-      const subcategoriasDeparaDisponiveis = useMemo(() => {
-        const cat = getCategoria(novoDeparaCategoriaId);
-        return cat && cat.subcategorias ? cat.subcategorias : [];
-      }, [novoDeparaCategoriaId, categorias]);
-
-      const parcelasTerminandoEsteMes = useMemo(() => {
-        return installmentsForMonth.filter(p => p.parcelas > 1 && p.index === p.parcelas);
-      }, [installmentsForMonth]);
-
-      async function handleLogin(e) {
-        e.preventDefault();
-        setAuthError("");
-        const { error } = await supabaseClient.auth.signInWithPassword({
-          email: authEmail,
-          password: authPassword,
-        });
-        if (error) {
-          setAuthError("Erro ao entrar: " + error.message);
-        }
-      }
-
-      async function handleLogout() {
-        await supabaseClient.auth.signOut();
-      }
-
-      function isFaturaFechada(comp) { return !!faturasFechadas[comp]; }
-
-      function toggleFaturaFechada(comp, e) {
-        if (e) e.stopPropagation();
-        const jaEstaFechada = !!faturasFechadas[comp];
-        if (jaEstaFechada) {
-          const confirmar = window.confirm("Tem certeza que deseja reabrir a fatura?");
-          if (!confirmar) return;
-        }
-        updateFechadas(prev => ({ ...prev, [comp]: !prev[comp] }));
-      }
-
-      function getCartao(id) { return cartoes.find(c => c.id === id) || null; }
-      function getCategoria(id) { return categorias.find(cat => cat.id === id) || null; }
-      function getSubcategoria(catId, subId) {
-        const cat = getCategoria(catId);
-        if (!cat || !cat.subcategorias) return null;
-        return cat.subcategorias.find(s => s.id === subId) || null;
-      }
-
-      function buscarRegraDepara(rawDesc) {
-        const upper = rawDesc.toUpperCase();
-        for (const rule of deparaList) {
-          if (upper.includes(rule.fatura.toUpperCase())) {
-            return {
-              encontrado: true,
-              descricao: rule.importacao ? rule.importacao : rawDesc,
-              categoriaId: rule.categoriaId,
-              subcategoriaId: rule.subcategoriaId
-            };
-          }
-        }
-        return { encontrado: false };
-      }
-
-      function handleValorTotalChange(val) {
-        setValorTotal(val);
-        const numVal = parseValorInput(val);
-        const numParc = parseInt(parcelas, 10) || 1;
-        if (Number.isFinite(numVal) && numVal > 0) {
-          setValorParcelaInput((numVal / numParc).toFixed(2).replace(".", ","));
-        } else { setValorParcelaInput(""); }
-      }
-
-      function handleValorParcelaChange(val) {
-        setValorParcelaInput(val);
-        const numVal = parseValorInput(val);
-        const numParc = parseInt(parcelas, 10) || 1;
-        if (Number.isFinite(numVal) && numVal > 0) {
-          setValorTotal((numVal * numParc).toFixed(2).replace(".", ","));
-        } else { setValorTotal(""); }
-      }
-
-      function handleParcelasChange(val) {
-        setParcelas(val);
-        const numParc = parseInt(val, 10) || 1;
-        const numTot = parseValorInput(valorTotal);
-        if (Number.isFinite(numTot) && numTot > 0) {
-          setValorParcelaInput((numTot / numParc).toFixed(2).replace(".", ","));
-        }
-      }
-
       function handleSaveCartao(e) {
         e.preventDefault();
-        setCartaoError("");
-        const nome = novoCartaoNome.trim();
-        if (!nome) { setCartaoError("Dê um nome ao cartão."); return; }
+        if (!novoCartaoNome.trim()) return;
+
         if (editingCartaoId) {
-          updateCartoes(prev => prev.map(c => c.id === editingCartaoId ? { ...c, nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor } : c));
+          updateCartoes(prev => prev.map(c => c.id === editingCartaoId ? { ...c, nome: novoCartaoNome, banco: novoCartaoBanco, cor: novoCartaoCor } : c));
         } else {
-          updateCartoes(prev => [...prev, { id: uid(), nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor }]);
+          const novo = { id: Date.now().toString(), nome: novoCartaoNome, banco: novoCartaoBanco, cor: novoCartaoCor };
+          updateCartoes(prev => [...prev, novo]);
         }
         setCartaoModalOpen(false);
-      }
-
-      function handleSaveEditCategoria(e) {
-        e.preventDefault();
-        const nome = editCategoriaModal.nome.trim();
-        if (!nome) return;
-        updateCategorias(prev => prev.map(c => c.id === editCategoriaModal.id ? { ...c, nome, cor: editCategoriaModal.cor } : c));
-        setEditCategoriaModal({ open: false, id: null, nome: "", cor: CARD_COLORS[0] });
-      }
-
-      function handleSaveEditSubcategoria(e) {
-        e.preventDefault();
-        const nome = editSubcategoriaModal.nome.trim();
-        if (!nome) return;
-        updateCategorias(prev => prev.map(c => {
-          if (c.id !== editSubcategoriaModal.catId) return c;
-          return {
-            ...c,
-            subcategorias: c.subcategorias.map(s => s.id === editSubcategoriaModal.subId ? { ...s, nome } : s)
-          };
-        }));
-        setEditSubcategoriaModal({ open: false, catId: null, subId: null, nome: "" });
-      }
-
-      function handleAddDepara(e) {
-        e.preventDefault();
-        setDeparaError("");
-        const fatura = novoDeparaFatura.trim();
-        if (!fatura) { setDeparaError("Informe a descrição da fatura."); return; }
-        if (!novoDeparaCategoriaId || !novoDeparaSubcategoriaId) { setDeparaError("Selecione categoria e subcategoria."); return; }
-        updateDepara(prev => [...prev, {
-          id: uid(), fatura, importacao: novoDeparaImportacao.trim(), categoriaId: novoDeparaCategoriaId, subcategoriaId: novoDeparaSubcategoriaId
-        }]);
-        setNovoDeparaFatura(""); setNovoDeparaImportacao(""); setNovoDeparaCategoriaId(""); setNovoDeparaSubcategoriaId("");
+        setEditingCartaoId(null);
+        setNovoCartaoNome("");
       }
 
       function handleAddCategoria(e) {
         e.preventDefault();
-        const nome = novaCategoriaNome.trim();
-        if (!nome) return;
-        updateCategorias(prev => [...prev, { id: uid(), nome, cor: novaCategoriaCor, subcategorias: [] }]);
+        if (!novaCategoriaNome.trim()) return;
+        const nova = { id: Date.now().toString(), nome: novaCategoriaNome, subcategorias: [] };
+        updateCategorias(prev => [...prev, nova]);
         setNovaCategoriaNome("");
       }
 
       function handleAddSubcategoria(catId) {
-        const nome = (subInputs[catId] || "").trim();
-        if (!nome) return;
-        updateCategorias(prev => prev.map(c => c.id !== catId ? c : { ...c, subcategorias: [...c.subcategorias, { id: uid(), nome }] }));
-        setSubInputs(prev => ({ ...prev, [catId]: "" }));
-      }
-
-      function handleProcessarTxtCategorias(e) {
-        e.preventDefault();
-        const linhas = txtCategoriasContent.split("\n");
-        if (linhas.length === 0 || !txtCategoriasContent.trim()) {
-          alert("Cole ou carregue um arquivo TXT válido.");
-          return;
-        }
-
-        let novasCategorias = [...categorias];
-        let catAtual = null;
-        let qtdCatAdicionadas = 0;
-        let qtdSubAdicionadas = 0;
-
-        linhas.forEach(linhaOriginal => {
-          const temTabulacao = linhaOriginal.startsWith("\t") || linhaOriginal.startsWith("    ");
-          const limpa = linhaOriginal.trim();
-          if (!limpa) return;
-
-          const ehSub = temTabulacao || limpa.startsWith("-") || limpa.startsWith("•");
-          const nomeItem = limpa.replace(/^[-•]\s*/, "").trim();
-
-          if (!ehSub) {
-            let catExistente = novasCategorias.find(c => c.nome.toLowerCase() === nomeItem.toLowerCase());
-            if (!catExistente) {
-              catExistente = {
-                id: uid(),
-                nome: nomeItem,
-                cor: CARD_COLORS[novasCategorias.length % CARD_COLORS.length],
-                subcategorias: []
-              };
-              novasCategorias.push(catExistente);
-              qtdCatAdicionadas++;
-            }
-            catAtual = catExistente;
-          } else {
-            if (catAtual) {
-              let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase());
-              if (!subExistente) {
-                catAtual.subcategorias.push({ id: uid(), nome: nomeItem });
-                qtdSubAdicionadas++;
-              }
-            } else if (novasCategorias.length > 0) {
-              catAtual = novasCategorias[novasCategorias.length - 1];
-              let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase());
-              if (!subExistente) {
-                catAtual.subcategorias.push({ id: uid(), nome: nomeItem });
-                qtdSubAdicionadas++;
-              }
-            }
-          }
-        });
-
-        updateCategorias(novasCategorias);
-        setTxtCategoriasContent("");
-        alert(`Importação concluída!\n- ${qtdCatAdicionadas} nova(s) categoria(s) adicionada(s).\n- ${qtdSubAdicionadas} nova(s) subcategoria(s) adicionada(s).`);
-      }
-
-      function handleUploadTxtFile(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          setTxtCategoriasContent(evt.target.result);
-        };
-        reader.readAsText(file);
-        if (txtInputRef.current) txtInputRef.current.value = "";
+        const nomeSub = subInputs[catId];
+        if (!nomeSub || !nomeSub.trim()) return;
+        updateCategorias(prev => prev.map(c => {
+          if (c.id !== catId) return c;
+          return { ...c, subcategorias: [...c.subcategorias, { id: Date.now().toString(), nome: nomeSub.trim() }] };
+        }));
+        setSubInputs({ ...subInputs, [catId]: "" });
       }
 
       function handleConfirmDelete(option) {
@@ -627,7 +261,6 @@ useEffect(() => {
         if (type === "purchase") {
           if (purchase && purchase.parcelas > 1) {
             if (option === 'single') {
-              // Opção: Excluir somente a parcela deste mês atual
               updatePurchases(prev => prev.map(p => {
                 if (p.id !== id) return p;
                 const excluidosAtuais = p.mesesExcluidos || [];
@@ -635,11 +268,9 @@ useEffect(() => {
                 return { ...p, mesesExcluidos: [...excluidosAtuais, month] };
               }));
             } else if (option === 'all') {
-              // Opção: Excluir todas as parcelas (remove o lançamento inteiro)
               updatePurchases(prev => prev.filter(p => p.id !== id));
             }
           } else {
-            // Compra à vista (1x) exclui direto
             updatePurchases(prev => prev.filter(p => p.id !== id));
           }
         } 
@@ -650,784 +281,129 @@ useEffect(() => {
         
         setDeleteModal({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "" });
       }
-      
-      function handleBatchDeleteConfirm(e) {
-        e.preventDefault();
-        if (batchConfirmText.trim().toUpperCase() !== "EXCLUIR") {
-          alert("Digite exatamente EXCLUIR para confirmar.");
-          return;
-        }
-        updatePurchases(prev => prev.filter(p => !selectedIds.includes(p.id)));
-        setSelectedIds([]); setBatchConfirmText(""); setBatchDeleteModalOpen(false);
-      }
-
-      function toggleSelectAll() {
-        if (selectedIds.length === installmentsForMonth.length) setSelectedIds([]);
-        else setSelectedIds(installmentsForMonth.map(p => p.id));
-      }
-
-      function toggleSelectItem(id) {
-        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
-      }
-
-      function handleSaveLancamento(e) {
-        e.preventDefault();
-        setFormError("");
-        if (isFaturaFechada(faturaMes)) { setFormError("A fatura selecionada está fechada."); return; }
-        const total = parseValorInput(valorTotal);
-        const n = parseInt(parcelas, 10);
-        const atual = parseInt(parcelaAtual, 10);
-        
-        if (!descricao.trim() || !categoriaId || !subcategoriaId || !Number.isFinite(total) || total <= 0) {
-          setFormError("Preencha todos os campos obrigatórios corretamente.");
-          return;
-        }
-
-        if (editingId) {
-          updatePurchases(prev => prev.map(p => p.id === editingId ? {
-            ...p, descricao: descricao.trim(), total, dataCompra: dataLancamento, parcelas: n, parcelaInicial: atual, inicio: faturaMes, cartaoId: cartaoId || null, categoriaId, subcategoriaId
-          } : p));
-        } else {
-          updatePurchases(prev => [...prev, {
-            id: uid(), descricao: descricao.trim(), total, dataCompra: dataLancamento, parcelas: n, parcelaInicial: atual, inicio: faturaMes, cartaoId: cartaoId || null, categoriaId, subcategoriaId, criadoEm: Date.now()
-          }]);
-        }
-        setModalOpen(false);
-      }
-
-      async function handlePDFImport(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        if (isFaturaFechada(month)) {
-          alert("A fatura deste mês está fechada. Abra a fatura antes de importar novos lançamentos.");
-          if (fileInputRef.current) fileInputRef.current.value = "";
-          return;
-        }
-
-        setIsImportingPDF(true);
-        try {
-          const arrayBuffer = await file.arrayBuffer();
-          const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-          const pdfDoc = await loadingTask.promise;
-          
-          let fullTextLines = [];
-          for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const page = await pdfDoc.getPage(i);
-            const textContent = await page.getTextContent();
-            textContent.items.forEach(item => {
-              if (item.str && item.str.trim()) fullTextLines.push(item.str.trim());
-            });
-          }
-
-          const novasCompras = [];
-          let itensIgnoradosSemDepara = 0;
-          const currentYear = month.split("-")[0];
-          const cartaoSantander = cartoes.find(c => c.bancoCode === "033") || cartoes[0];
-          const defaultCartaoId = cartaoSantander ? cartaoSantander.id : null;
-
-          let i = 0;
-          while (i < fullTextLines.length) {
-            const line = fullTextLines[i];
-            const dateMatch = line.match(/^(\d{2})\/(\d{2})$/);
-            if (dateMatch) {
-              const dia = dateMatch[1];
-              const mes = dateMatch[2];
-              const dataCompra = `${currentYear}-${mes}-${dia}`;
-              
-              let descParts = [];
-              let valorEncontrado = null;
-              let parcelaAtualNum = 1;
-              let totalParcelasNum = 1;
-
-              let j = i + 1;
-              let foundVal = false;
-              while (j < Math.min(i + 6, fullTextLines.length)) {
-                const nextLine = fullTextLines[j];
-                const valMatch = nextLine.match(/^-?([\d]{1,3}(\.[\d]{3})*|\d+),(\d{2})$/);
-                if (valMatch) {
-                  valorEncontrado = parseValorInput(nextLine);
-                  foundVal = true;
-                  i = j;
-                  break;
-                } else {
-                  const parcMatch = nextLine.match(/^(\d{2})\/(\d{2})$/);
-                  if (parcMatch) {
-                    parcelaAtualNum = parseInt(parcMatch[1], 10);
-                    totalParcelasNum = parseInt(parcMatch[2], 10);
-                  } else {
-                    descParts.push(nextLine);
-                  }
-                }
-                j++;
-              }
-
-              if (foundVal && valorEncontrado !== null && valorEncontrado > 0) {
-                const rawDesc = descParts.join(" ").trim() || "Compra Importada Santander";
-                const regra = buscarRegraDepara(rawDesc);
-                
-                if (regra.encontrado && regra.categoriaId && regra.subcategoriaId) {
-                  const inicioCompetencia = addMonths(month, -(parcelaAtualNum - 1));
-                  novasCompras.push({
-                    id: uid(),
-                    descricao: regra.descricao,
-                    total: valorEncontrado * totalParcelasNum,
-                    dataCompra: dataCompra,
-                    parcelas: totalParcelasNum,
-                    parcelaInicial: 1,
-                    inicio: inicioCompetencia,
-                    cartaoId: defaultCartaoId,
-                    categoriaId: regra.categoriaId,
-                    subcategoriaId: regra.subcategoriaId,
-                    criadoEm: Date.now()
-                  });
-                } else {
-                  itensIgnoradosSemDepara++;
-                }
-              }
-            }
-            i++;
-          }
-
-          if (novasCompras.length > 0) {
-            updatePurchases(prev => [...prev, ...novasCompras]);
-            let msg = `Sucesso! Foram importados ${novasCompras.length} lançamentos via De-Para.`;
-            if (itensIgnoradosSemDepara > 0) msg += ` ${itensIgnoradosSemDepara} item(ns) ignorados por falta de regra De-Para cadastrada.`;
-            alert(msg);
-          } else {
-            alert(`Nenhum lançamento importado. ${itensIgnoradosSemDepara > 0 ? `${itensIgnoradosSemDepara} itens encontrados na fatura não possuem regra De-Para válida cadastrada.` : 'Nenhum item válido encontrado.'}`);
-          }
-        } catch (err) {
-          console.error(err);
-          alert("Erro ao ler o arquivo PDF.");
-        } finally {
-          setIsImportingPDF(false);
-          if (fileInputRef.current) fileInputRef.current.value = "";
-        }
-      }
-
-      async function handlePlanilhaImport(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        if (isFaturaFechada(month)) {
-          alert("A fatura deste mês está fechada. Abra a fatura antes de importar novos lançamentos.");
-          if (planilhaInputRef.current) planilhaInputRef.current.value = "";
-          return;
-        }
-
-        setIsImportingPlanilha(true);
-        try {
-          const text = await file.text();
-          const lines = text.split("\n");
-          if (lines.length <= 1) {
-            alert("O arquivo CSV/Planilha está vazio ou em formato inválido.");
-            return;
-          }
-
-          const header = lines[0];
-          const separator = header.includes(";") ? ";" : ",";
-
-          const novasCompras = [];
-          const currentYear = month.split("-")[0];
-          const defaultCartaoId = cartoes[0] ? cartoes[0].id : null;
-
-          for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-
-            const cols = line.split(separator).map(c => c.replace(/^["']|["']$/g, "").trim());
-            if (cols.length < 2) continue;
-
-            const dataStr = cols[0] || `${currentYear}-01-01`;
-            let dataIso = currentDate();
-            if (dataStr.includes("/")) {
-              const pData = dataStr.split("/");
-              if (pData.length === 3) dataIso = `${pData[2]}-${pData[1]}-${pData[0]}`;
-            }
-
-            const descricaoItem = cols[1] || "Lançamento Importado";
-            const parcelaStr = cols[5] || "1/1";
-            const pParts = parcelaStr.split("/");
-            const parcelaAtualNum = parseInt(pParts[0], 10) || 1;
-            const totalParcelasNum = parseInt(pParts[1], 10) || 1;
-
-            const valorTotalNum = parseValorInput(cols[7]) || (parseValorInput(cols[6]) * totalParcelasNum) || 0;
-
-            if (valorTotalNum > 0) {
-              const regra = buscarRegraDepara(descricaoItem);
-              const catFinal = regra.encontrado ? regra.categoriaId : (categorias[0] ? categorias[0].id : null);
-              const subFinal = regra.encontrado ? regra.subcategoriaId : (categorias[0]?.subcategorias[0] ? categorias[0].subcategorias[0].id : null);
-              const descFinal = regra.encontrado ? regra.descricao : descricaoItem;
-
-              const inicioCompetencia = addMonths(month, -(parcelaAtualNum - 1));
-
-              if (catFinal && subFinal) {
-                novasCompras.push({
-                  id: uid(),
-                  descricao: descFinal,
-                  total: valorTotalNum,
-                  dataCompra: dataIso,
-                  parcelas: totalParcelasNum,
-                  parcelaInicial: 1,
-                  inicio: inicioCompetencia,
-                  cartaoId: defaultCartaoId,
-                  categoriaId: catFinal,
-                  subcategoriaId: subFinal,
-                  criadoEm: Date.now()
-                });
-              }
-            }
-          }
-
-          if (novasCompras.length > 0) {
-            updatePurchases(prev => [...prev, ...novasCompras]);
-            alert(`Sucesso! Foram importados ${novasCompras.length} lançamentos da planilha.`);
-          } else {
-            alert("Nenhum lançamento válido foi encontrado na planilha.");
-          }
-        } catch (err) {
-          console.error(err);
-          alert("Erro ao ler o arquivo de planilha.");
-        } finally {
-          setIsImportingPlanilha(false);
-          if (planilhaInputRef.current) planilhaInputRef.current.value = "";
-        }
-      }
-
-      const totalMes = installmentsForMonth.reduce((s, p) => s + p.valorParcela, 0);
-      const totalValorParcelaTabela = totalMes;
-      const totalValorTotalTabela = installmentsForMonth.reduce((acc, p) => acc + p.total, 0);
-      const totalTerminandoEsteMes = parcelasTerminandoEsteMes.reduce((s, p) => s + p.valorParcela, 0);
-      const fechadaAtual = isFaturaFechada(month);
-
-      function exportToExcel() {
-        if (installmentsForMonth.length === 0) return alert("Sem lançamentos para exportar.");
-        let csv = "\uFEFFData;Descrição;Cartão;Categoria;Subcategoria;Parcela;Valor Parcela;Valor Total\n";
-        installmentsForMonth.forEach(p => {
-          const cat = getCategoria(p.categoriaId);
-          const sub = getSubcategoria(p.categoriaId, p.subcategoriaId);
-          const cartao = getCartao(p.cartaoId);
-          csv += `${formatDateBR(p.dataCompra)};"${p.descricao}";"${cartao?.nome || ''}";"${cat?.nome || ''}";"${sub?.nome || ''}";"${p.index}/${p.parcelas}";${p.valorParcela.toFixed(2).replace('.', ',')};${p.total.toFixed(2).replace('.', ',')}\n`;
-        });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `fatura_${month}.csv`;
-        a.click();
-      }
-
-      function exportToPDF() {
-        if (installmentsForMonth.length === 0) return alert("Sem lançamentos para imprimir.");
-        window.print();
-      }
-
-      if (authLoading) {
-        return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Carregando sistema...");
-      }
 
       if (!session) {
-        return h('div', { className: 'fatura-app', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '80vh' } },
-          h('div', { className: 'form-card', style: { width: '100%', maxWidth: '400px', padding: '30px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' } },
-            h('div', { style: { textAlign: 'center', marginBottom: '24px' } },
-              h('div', { style: { display: 'inline-flex', padding: '12px', background: 'var(--paper)', borderRadius: '50%', marginBottom: '12px', color: 'var(--green)' } }, h(CreditCard, { size: 28 })),
-              h('h2', { style: { margin: 0, fontSize: '22px', color: 'var(--ink)' } }, "Fatura App"),
-              h('div', { style: { fontSize: '13px', color: 'var(--ink-soft)', marginTop: '4px' } }, "Entre com sua conta para gerenciar faturas")
-            ),
-            h('form', { onSubmit: handleLogin, style: { display: 'flex', flexDirection: 'column', gap: '14px' } },
-              h('div', { className: 'field' },
-                h('label', null, "E-mail"),
-                h('input', { type: 'email', value: authEmail, onChange: e => setAuthEmail(e.target.value), placeholder: 'seu@email.com', required: true })
-              ),
-              h('div', { className: 'field' },
-                h('label', null, "Senha"),
-                h('input', { type: 'password', value: authPassword, onChange: e => setAuthPassword(e.target.value), placeholder: '••••••••', required: true })
-              ),
-              authError && h('div', { style: { color: 'var(--red)', fontSize: '13px', background: 'var(--red-soft)', padding: '8px 12px', borderRadius: '4px' } }, authError),
-              h('button', { type: 'submit', className: 'primary', style: { justifyContent: 'center', marginTop: '6px', padding: '10px' } }, "Entrar na Conta")
-            )
-          )
+        return h('div', { className: 'container', style: { padding: 40, textAlign: 'center' } },
+          h('h2', { style: { marginBottom: 16 } }, "Samuel Gomes Consultoria - Faturas"),
+          h('p', { style: { marginBottom: 20, color: 'var(--text-muted)' } }, "Faça login para acessar o sistema."),
+          h('button', { className: 'primary', onClick: () => supabaseClient.auth.signInWithOAuth({ provider: 'google' }) }, "Entrar com Google")
         );
       }
 
-      if (dataLoading) {
-        return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Sincronizando dados da nuvem...");
-      }
-
-      return h('div', { className: 'fatura-app' },
-        h('style', null, `
-          .fatura-app { --paper: #ECE8DD; --card: #FAF8F2; --ink: #262117; --ink-soft: #6B6355; --line: #D8D0BC; --green: #2F5233; --red: #8C3B2E; --red-soft: #F1E4DF; --amber: #D97706; --amber-soft: #FEF3C7; font-family: sans-serif; color: var(--ink); max-width: 900px; margin: 0 auto; padding: 12px; }
-          .fatura-app * { box-sizing: border-box; }
-          .fatura-app .num { font-family: monospace; }
-          .fatura-app .app-nav, .fatura-app .sub-nav { display: flex; gap: 20px; border-bottom: 1px solid var(--line); margin-bottom: 18px; padding-bottom: 8px; flex-wrap: wrap; }
-          .fatura-app .app-nav button, .fatura-app .sub-nav button { background: none; border: none; padding: 8px 2px; font-size: 15px; font-weight: bold; color: var(--ink-soft); cursor: pointer; border-bottom: 2px solid transparent; }
-          .fatura-app .app-nav button.active, .fatura-app .sub-nav button.active { color: var(--ink); border-color: var(--green); }
-          .fatura-app .top, .fatura-app .form-card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 20px; margin-bottom: 16px; }
-          .fatura-app .brand { display: flex; align-items: center; justify-content: space-between; color: var(--ink-soft); font-size: 13px; margin-bottom: 14px; }
-          .fatura-app .nav-month { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-          .fatura-app .nav-month button { background: none; border: 1px solid var(--line); border-radius: 5px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-          .fatura-app .month-label { font-size: 20px; font-weight: bold; }
-          .fatura-app .total-mes { font-size: 40px; font-weight: bold; margin-top: 10px; }
-          .fatura-app .total-sub { color: var(--ink-soft); font-size: 13px; }
-          
-          .fatura-app .ending-box { background: #F6F4EE; border: 1px dashed var(--line); border-radius: 6px; padding: 12px 16px; margin-top: 20px; font-size: 13px; }
-          .fatura-app .ending-title { font-weight: 600; display: flex; align-items: center; gap: 6px; color: var(--green); margin-bottom: 6px; }
-
-          .fatura-app table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-          .fatura-app th, .fatura-app td { padding: 10px 6px; border-bottom: 1px solid var(--line); font-size: 13px; text-align: left; }
-          .fatura-app th.right, .fatura-app td.right { text-align: right; }
-          .fatura-app th.center, .fatura-app td.center { text-align: center; }
-          .fatura-app .badge { font-size: 11px; padding: 2px 6px; background: var(--paper); border-radius: 4px; color: var(--ink-soft); white-space: nowrap; }
-          .fatura-app .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-          
-          .fatura-app .lock-btn { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 5px; font-size: 13px; cursor: pointer; border: 1px solid var(--line); background: #fff; color: var(--ink); }
-          .fatura-app .lock-btn.closed { background: var(--amber-soft); border-color: var(--amber); color: var(--amber); }
-          
-          .fatura-app .action-btn { background: #fff; border: 1px solid var(--line); border-radius: 4px; padding: 6px; color: var(--ink-soft); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-          .fatura-app .action-btn:hover { border-color: var(--ink); color: var(--ink); }
-          .fatura-app .action-btn.delete:hover { border-color: var(--red); color: var(--red); background: var(--red-soft); }
-
-          .fatura-app .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 12px; z-index: 50; }
-          .fatura-app .modal-content { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 20px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
-          .fatura-app .modal-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-          .fatura-app .field { display: flex; flex-direction: column; gap: 4px; width: 100%; }
-          .fatura-app .field.full { grid-column: span 2; }
-          .fatura-app label { font-size: 12px; color: var(--ink-soft); }
-          .fatura-app input, .fatura-app select, .fatura-app textarea { font-family: inherit; font-size: 14px; padding: 8px; border: 1px solid var(--line); border-radius: 5px; background: #fff; width: 100%; box-sizing: border-box; }
-          .fatura-app .submit-row { grid-column: span 2; display: flex; justify-content: space-between; align-items: center; margin-top: 8px; flex-wrap: wrap; gap: 8px; }
-          
-          .fatura-app button.primary { background: var(--green); color: #fff; border: none; border-radius: 5px; padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-          .fatura-app button.danger { background: var(--red); color: #fff; border: none; border-radius: 5px; padding: 8px 14px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-          
-          .fatura-app .purchase-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
-          .fatura-app button.icon { background: none; border: none; color: var(--ink-soft); cursor: pointer; padding: 4px; }
-          .fatura-app .color-swatches { display: flex; gap: 6px; }
-          .fatura-app .color-swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
-          .fatura-app .color-swatch.selected { border-color: var(--ink); }
-          
-          .fatura-app .list-vertical { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
-          .fatura-app .list-item { border: 1px solid var(--line); border-radius: 6px; background: #fff; padding: 12px; transition: background 0.2s; }
-          .fatura-app .list-item.clickable { cursor: pointer; }
-          .fatura-app .list-item.clickable:hover { background: var(--paper); }
-          .fatura-app .list-item-main { display: flex; align-items: center; justify-content: space-between; font-weight: 500; font-size: 15px; }
-          .fatura-app .subcategory-item-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ink); padding: 4px 0; border-bottom: 1px dashed var(--line); }
-          .fatura-app .add-subcat-form { display: flex; gap: 8px; margin-top: 8px; padding-left: 16px; }
-
-          @media print {
-            body { background: #fff !important; }
-            .fatura-app .app-nav, .fatura-app .form-card, .fatura-app .export-buttons, .fatura-app button { display: none !important; }
-            .fatura-app .top { border: none !important; background: #fff !important; padding: 0 !important; }
-          }
-        `),
-
-        h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' } },
-          h('button', { type: 'button', className: 'action-btn', onClick: handleLogout, style: { fontSize: '13px', padding: '4px 12px', color: 'var(--red)', borderColor: 'var(--red)', background: '#fff' } }, "Sair 🚪")
+      return h('div', { className: 'container' },
+        h('header', null,
+          h('div', null,
+            h('h1', null, "Samuel Gomes Consultoria"),
+            h('p', { style: { fontSize: 13, color: 'var(--text-muted)' } }, session.user.email)
+          ),
+          h('button', { className: 'action-btn', onClick: () => supabaseClient.auth.signOut() }, "Sair")
         ),
 
-        h('div', { className: 'app-nav' },
-          h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, "Cadastros"),
-          h('button', { className: screen === "lancamentos" ? "active" : "", onClick: () => setScreen("lancamentos") }, "Lançamentos"),
-          h('button', { className: screen === "faturas" ? "active" : "", onClick: () => setScreen("faturas") }, "Faturas")
+        h('div', { className: 'nav-tabs' },
+          h('button', { className: screen === 'cadastros' ? 'active' : '', onClick: () => setScreen('cadastros') }, "Cadastros"),
+          h('button', { className: screen === 'lancamentos' ? 'active' : '', onClick: () => setScreen('lancamentos') }, "Lançamentos"),
+          h('button', { className: screen === 'faturas' ? 'active' : '', onClick: () => setScreen('faturas') }, "Faturas")
         ),
 
-        screen === "cadastros" && h('div', { className: 'form-card' },
-          h('div', { className: 'sub-nav' },
-            h('button', { className: cadastroTab === "cartoes" ? "active" : "", onClick: () => setCadastroTab("cartoes") }, "Cartões"),
-            h('button', { className: cadastroTab === "categorias" ? "active" : "", onClick: () => setCadastroTab("categorias") }, "Categorias"),
-            h('button', { className: cadastroTab === "depara" ? "active" : "", onClick: () => setCadastroTab("depara") }, "De-Para (Regras)"),
-            h('button', { className: cadastroTab === "importar-txt" ? "active" : "", onClick: () => setCadastroTab("importar-txt") }, "📥 Importar TXT")
+        // Tela de Cadastros
+        screen === 'cadastros' && h('div', null,
+          h('div', { className: 'nav-tabs', style: { marginBottom: 12 } },
+            h('button', { className: cadastroTab === 'cartoes' ? 'active' : '', onClick: () => setCadastroTab('cartoes') }, "Cartões"),
+            h('button', { className: cadastroTab === 'categorias' ? 'active' : '', onClick: () => setCadastroTab('categorias') }, "Categorias")
           ),
 
-          cadastroTab === "cartoes" && h(React.Fragment, null,
-            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-              h('div', { style: { fontSize: 14, color: 'var(--ink-soft)' } }, "Meus Cartões"),
-              h('button', { type: 'button', className: 'primary', onClick: () => { setEditingCartaoId(null); setNovoCartaoNome(""); setNovoCartaoBanco("033"); setNovoCartaoCor(CARD_COLORS[0]); setCartaoModalOpen(true); } }, h(Plus), " Novo Cartão")
+          cadastroTab === 'cartoes' && h('div', { className: 'card' },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
+              h('h3', null, "Meus Cartões"),
+              h('button', { className: 'primary', onClick: () => { setEditingCartaoId(null); setNovoCartaoNome(""); setCartaoModalOpen(true); } }, "+ Novo Cartão")
             ),
-            h('div', { className: 'list-vertical', style: { marginTop: 12 } },
-              cartoes.map((c) => h('div', { className: 'list-item', key: c.id },
-                h('div', { className: 'list-item-main' },
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                    h(BankIcon, { size: 20 }),
-                    h('span', { className: 'dot', style: { background: c.cor } }),
-                    h('span', null, c.nome)
-                  ),
-                  h('div', { style: { display: 'flex', gap: 6 } },
-                    h('button', { type: 'button', className: 'action-btn', onClick: () => {
-                      setEditingCartaoId(c.id);
-                      setNovoCartaoNome(c.nome);
-                      setNovoCartaoBanco(c.bancoCode || "033");
-                      setNovoCartaoCor(c.cor || CARD_COLORS[0]);
-                      setCartaoModalOpen(true);
-                    } }, h(Pencil, { size: 14 })),
-                    h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'cartao', id: c.id, title: 'Excluir Cartão', message: `Excluir ${c.nome}?` }) }, h(Trash2, { size: 14 }))
-                  )
-                )
-              ))
-            )
+            cartoes.map(c => h('div', { key: c.id, className: 'purchase-row' },
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
+                h('div', { style: { width: 16, height: 16, borderRadius: '50%', background: c.cor || '#2563eb' } }),
+                h('span', { style: { fontWeight: 600 } }, c.nome)
+              ),
+              h('div', { style: { display: 'flex', gap: 8 } },
+                h('button', { className: 'action-btn', onClick: () => { setEditingCartaoId(c.id); setNovoCartaoNome(c.nome); setNovoCartaoBanco(c.banco || '001'); setNovoCartaoCor(c.cor || CARD_COLORS[0]); setCartaoModalOpen(true); } }, "Editar"),
+                h('button', { className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'cartao', id: c.id, title: 'Excluir Cartão', message: 'Deseja excluir este cartão?' }) }, "Excluir")
+              )
+            ))
           ),
 
-          cadastroTab === "categorias" && h(React.Fragment, null,
-            h('form', { onSubmit: handleAddCategoria, style: { display: 'flex', gap: 10, flexWrap: 'wrap' } },
+          cadastroTab === 'categorias' && h('div', { className: 'card' },
+            h('h3', { style: { marginBottom: 12 } }, "Gerenciar Categorias"),
+            h('div', { className: 'form-row' },
               h('input', { 
                 type: 'text', 
                 placeholder: 'Nome da nova categoria', 
                 value: novaCategoriaNome, 
-                onChange: (e) => setNovaCategoriaNome(e.target.value), 
-                onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategoria(e); } },
-                style: { flex: 1, minWidth: 160 }, 
-                required: true 
-          }),
-             
-              h('button', { type: 'submit', className: 'primary' }, h(Plus), " Cadastrar")
+                onChange: e => setNovaCategoriaNome(e.target.value),
+                onKeyDown: e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategoria(e); } },
+                style: { flex: 1 } 
+              }),
+              h('button', { className: 'primary', onClick: handleAddCategoria }, "Adicionar")
             ),
-            h('div', { className: 'list-vertical' },
-              categorias.map((cat) => h('div', { className: 'list-item', key: cat.id },
-                h('div', { className: 'list-item-main' },
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                    h('span', { className: 'dot', style: { background: cat.cor } }),
-                    h('span', null, cat.nome)
-                  ),
-                  h('div', { style: { display: 'flex', gap: 6 } },
-                    h('button', { type: 'button', className: 'action-btn', onClick: () => setEditCategoriaModal({ open: true, id: cat.id, nome: cat.nome, cor: cat.cor || CARD_COLORS[0] }) }, h(Pencil, { size: 14 })),
-                    h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'categoria', id: cat.id, title: 'Excluir Categoria', message: `Excluir ${cat.nome}?` }) }, h(Trash2, { size: 14 }))
-                  )
-                ),
-                cat.subcategorias && cat.subcategorias.map((sub) => h('div', { className: 'subcategory-item-row', key: sub.id },
-                  h('span', null, "↳ ", sub.nome),
-                  h('div', { style: { display: 'flex', gap: 4 } },
-                    h('button', { type: 'button', className: 'action-btn', style: { padding: 3 }, onClick: () => setEditSubcategoriaModal({ open: true, catId: cat.id, subId: sub.id, nome: sub.nome }) }, h(Pencil, { size: 12 })),
-                    h('button', { type: 'button', className: 'action-btn delete', style: { padding: 3 }, onClick: () => setDeleteModal({ open: true, type: 'subcategoria', id: cat.id, subId: sub.id, title: 'Excluir Subcategoria', message: `Excluir ${sub.nome}?` }) }, h(Trash2, { size: 12 }))
-                  )
-                )),
-                h('div', { className: 'add-subcat-form' },
-                  h('input', { 
+            categorias.map(cat => h('div', { key: cat.id, style: { marginTop: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' } },
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+                h('strong', null, cat.nome),
+                h('button', { className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'categoria', id: cat.id, title: 'Excluir Categoria', message: 'Deseja excluir esta categoria?' }) }, "Excluir")
+              ),
+              cat.subcategorias.map(sub => h('div', { key: sub.id, style: { display: 'flex', justifyContent: 'space-between', paddingLeft: 16, fontSize: 13, marginBottom: 4 } },
+                h('span', null, `• ${sub.nome}`),
+                h('button', { className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'subcategoria', id: cat.id, subId: sub.id, title: 'Excluir Subcategoria', message: 'Deseja excluir esta subcategoria?' }) }, "Remover")
+              )),
+              h('div', { className: 'form-row', style: { marginTop: 8, paddingLeft: 16 } },
+                h('input', { 
                   type: 'text', 
                   placeholder: '+ Adicionar subcategoria', 
-                  style: { padding: '4px 8px', fontSize: 12, flex: 1 }, 
                   value: subInputs[cat.id] || "", 
-                  onChange: (e) => setSubInputs({ ...subInputs, [cat.id]: e.target.value }),
-                  onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubcategoria(cat.id); } }
-          }),          
-                  h('button', { type: 'button', className: 'primary', style: { padding: '4px 8px', fontSize: 12 }, onClick: () => handleAddSubcategoria(cat.id) }, "Incluir")
-                )
-              ))
-            )
-          ),
-
-          cadastroTab === "depara" && h(React.Fragment, null,
-            h('div', { style: { fontSize: 13, color: 'var(--ink-soft)', marginBottom: 12 } }, "Regras de De-Para obrigatórias para importação de PDF do Santander."),
-            h('form', { onSubmit: handleAddDepara, style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end', flexWrap: 'wrap' } },
-              h('div', { className: 'field' },
-                h('label', null, "Descrição Fatura *"),
-                h('input', { type: 'text', placeholder: 'Ex: UBER *TRIP', value: novoDeparaFatura, onChange: (e) => setNovoDeparaFatura(e.target.value), required: true })
-              ),
-              h('div', { className: 'field' },
-                h('label', null, "Categoria *"),
-                h('select', { value: novoDeparaCategoriaId, onChange: (e) => { setNovoDeparaCategoriaId(e.target.value); setNovoDeparaSubcategoriaId(""); }, required: true },
-                  h('option', { value: "" }, "Selecione..."),
-                  categorias.map(c => h('option', { key: c.id, value: c.id }, c.nome))
-                )
-              ),
-              h('div', { className: 'field' },
-                h('label', null, "Subcategoria *"),
-                h('select', { value: novoDeparaSubcategoriaId, onChange: (e) => setNovoDeparaSubcategoriaId(e.target.value), required: true },
-                  h('option', { value: "" }, "Selecione..."),
-                  subcategoriasDeparaDisponiveis.map(s => h('option', { key: s.id, value: s.id }, s.nome))
-                )
-              ),
-              h('button', { type: 'submit', className: 'primary', style: { height: 38 } }, h(Plus), " Adicionar")
-            ),
-            h('div', { className: 'list-vertical' },
-              deparaList.map((d) => {
-                const cat = getCategoria(d.categoriaId);
-                const sub = getSubcategoria(d.categoriaId, d.subcategoriaId);
-                return h('div', { className: 'list-item', key: d.id },
-                  h('div', { className: 'list-item-main', style: { fontSize: 13 } },
-                    h('span', null, h('b', null, d.fatura), " ➔ ", cat?.nome, " > ", sub?.nome),
-                    h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'depara', id: d.id, title: 'Excluir Regra', message: 'Excluir regra De-Para?' }) }, h(Trash2, { size: 14 }))
-                  )
-                );
-              })
-            )
-          ),
-
-          cadastroTab === "importar-txt" && h(React.Fragment, null,
-            h('div', { style: { fontSize: 13, color: 'var(--ink-soft)', marginBottom: 8 } }, "Cole abaixo o texto ou carregue um arquivo .txt contendo as suas categorias e subcategorias (subcategorias iniciadas com TAB ou hífen)."),
-            h('div', { style: { display: 'flex', gap: 10, marginBottom: 10 } },
-              h('input', { type: 'file', accept: '.txt', ref: txtInputRef, style: { display: 'none' }, onChange: handleUploadTxtFile }),
-              h('button', { type: 'button', className: 'action-btn', onClick: () => txtInputRef.current && txtInputRef.current.click() }, "📁 Carregar arquivo .txt")
-            ),
-            h('form', { onSubmit: handleProcessarTxtCategorias, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
-              h('textarea', { rows: 10, placeholder: 'Exemplo:\nAlimentação\n\t- Supermercado\n\t- Restaurante\nMoradia\n\t- Aluguel', value: txtCategoriasContent, onChange: (e) => setTxtCategoriasContent(e.target.value), required: true }),
-              h('button', { type: 'submit', className: 'primary', style: { alignSelf: 'flex-start' } }, h(Plus), " Importar Categorias do TXT")
-            )
-          )
-        ),
-
-        screen === "lancamentos" && h(React.Fragment, null,
-          h('div', { className: 'top' },
-            h('div', { className: 'brand' },
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(CreditCard), " Lançamentos do cartão"),
-              h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
-                fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
-                fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
+                  onChange: e => setSubInputs({ ...subInputs, [cat.id]: e.target.value }),
+                  onKeyDown: e => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubcategoria(cat.id); } },
+                  style: { flex: 1, fontSize: 12 } 
+                }),
+                h('button', { className: 'primary', style: { padding: '4px 10px', fontSize: 12 }, onClick: () => handleAddSubcategoria(cat.id) }, "Adicionar")
               )
-            ),
-
-            h('div', { className: 'nav-month' },
-              h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)),
-              h('div', { className: 'month-label' }, formatMonthLabel(month)),
-              h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))
-            ),
-
-            h('div', { className: 'total-mes num' }, formatBRL(totalMes)),
-            h('div', { className: 'total-sub', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 } },
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } },
-                h('span', null, installmentsForMonth.length === 0 ? "Nenhum lançamento neste mês" : `${installmentsForMonth.length} lançamento(s)`),
-                selectedIds.length > 0 && h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) },
-                  h(Trash2, { size: 14 }), ` Excluir selecionados (${selectedIds.length})`
-                )
-              ),
-              h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
-                h('input', { type: 'file', accept: '.pdf', ref: fileInputRef, style: { display: 'none' }, onChange: handlePDFImport }),
-                h('input', { type: 'file', accept: '.csv,.txt', ref: planilhaInputRef, style: { display: 'none' }, onChange: handlePlanilhaImport }),
-                h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px', color: 'var(--green)', borderColor: 'var(--green)' }, onClick: () => fileInputRef.current && fileInputRef.current.click(), disabled: isImportingPDF || fechadaAtual },
-                  isImportingPDF ? h(Loader2, { size: 14, className: 'spin' }) : h(UploadCloud, { size: 14 }),
-                  isImportingPDF ? " Lendo PDF..." : " 📄 Importar Fatura Santander (PDF)"
-                ),
-                h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px', color: '#107c41', borderColor: '#107c41' }, onClick: () => planilhaInputRef.current && planilhaInputRef.current.click(), disabled: isImportingPlanilha || fechadaAtual },
-                  isImportingPlanilha ? h(Loader2, { size: 14, className: 'spin' }) : h(FileSpreadsheet, { size: 14 }),
-                  isImportingPlanilha ? " Lendo Planilha..." : " 📊 Importar Planilha (CSV)"
-                ),
-                h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
-                h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToPDF }, h(Printer, { size: 14 }), " PDF / Imprimir")
-              )
-            ),
-
-            h('table', null,
-              h('thead', null,
-                h('tr', null,
-                  h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', checked: installmentsForMonth.length > 0 && selectedIds.length === installmentsForMonth.length, onChange: toggleSelectAll, disabled: fechadaAtual })),
-                  h('th', null, "Data"), h('th', null, "Descrição"), h('th', null, "Categoria"), h('th', null, "Subcategoria"), h('th', { className: 'center' }, "Parcela"), h('th', { className: 'right' }, "Valor Parcela"), h('th', { className: 'right' }, "Valor Total")
-                )
-              ),
-              h('tbody', null,
-                installmentsForMonth.map((p) => {
-                  const cat = getCategoria(p.categoriaId);
-                  const sub = getSubcategoria(p.categoriaId, p.subcategoriaId);
-                  const cartao = getCartao(p.cartaoId);
-                  const isSelected = selectedIds.includes(p.id);
-                  return h('tr', { key: `${p.id}-${p.index}`, style: { background: isSelected ? 'var(--paper)' : 'transparent' } },
-                    h('td', { style: { textAlign: 'center' } }, h('input', { type: 'checkbox', checked: isSelected, onChange: () => toggleSelectItem(p.id), disabled: fechadaAtual })),
-                    h('td', null, formatDateBR(p.dataCompra)),
-                    h('td', null,
-                      h('div', null, p.descricao),
-                      cartao && h('div', { style: { fontSize: 11, color: '#6B6355', display: 'flex', alignItems: 'center', gap: 4 } }, h(BankIcon, { size: 12 }), " ", cartao.nome)
-                    ),
-                    h('td', null, cat?.nome || '-'),
-                    h('td', null, sub?.nome || '-'),
-                    h('td', { className: 'center' }, h('span', { className: 'badge' }, `${p.index}/${p.parcelas}`)),
-                    h('td', { className: 'right num' }, formatBRL(p.valorParcela)),
-                    h('td', { className: 'right num' }, formatBRL(p.total))
-                  );
-                })
-              ),
-              h('tfoot', null,
-                h('tr', { style: { fontWeight: 'bold', background: '#F2EFE9' } },
-                  h('td', { colSpan: '6', style: { textAlign: 'right', padding: '10px 6px' } }, "Total do Mês:"),
-                  h('td', { className: 'right num' }, formatBRL(totalValorParcelaTabela)),
-                  h('td', { className: 'right num' }, formatBRL(totalValorTotalTabela))
-                )
-              )
-            )
-          ),
-
-          h('div', { className: 'form-card' },
-            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } },
-              h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Gerenciar Lançamentos de ${formatMonthLabel(month)}`),
-              h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
-            ),
-            installmentsForMonth.map((p) => h('div', { className: 'purchase-row', key: `item-${p.id}-${p.index}` },
-              h('div', null,
-                h('div', { style: { fontWeight: 500 } }, p.descricao),
-                h('div', { style: { fontSize: 12, color: '#6B6355' } }, `Parcela ${p.index} de ${p.parcelas}`)
-              ),
-              h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
-                h('span', { className: 'num', style: { fontWeight: 600 } }, formatBRL(p.valorParcela)),
-                h('button', { type: 'button', className: 'action-btn', onClick: () => {
-                  setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
-                  setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
-                  setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString());
-                  setCartaoId(p.cartaoId || ''); setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || '');
-                  setModalOpen(true);
-                }, disabled: fechadaAtual }, h(Pencil, { size: 14 })),
-                h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({
-  open: true,
-  type: 'purchase',
-  id: p.id,
-  purchase: p,
-  title: 'Excluir Lançamento',
-  message: ''
-}) }, h(Trash2, { size: 14 }))
             ))
+          )
+        ),
+
+        // Tela de Lançamentos
+        screen === 'lancamentos' && h('div', { className: 'card' },
+          h('h3', { style: { marginBottom: 16 } }, "Lançamentos e Faturas"),
+          h('div', { style: { marginBottom: 16 } },
+            h('label', null, "Mês de Referência: "),
+            h('input', { type: 'month', value: month, onChange: e => setMonth(e.target.value) })
           ),
-
-          h('div', { className: 'form-card' },
-            h('div', { className: 'ending-box', style: { margin: 0, border: 'none', background: 'transparent', padding: 0 } },
-              h('div', { className: 'ending-title', style: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 } },
-                h(Sparkles, { size: 16 }), ` Parcelas que terminam este mês (${parcelasTerminandoEsteMes.length})`
-              ),
-              parcelasTerminandoEsteMes.length === 0 ? h('div', { style: { color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma parcela financiada (> 1x) finaliza nesta competência.") : h('div', null,
-                h('div', { style: { marginBottom: 10, fontWeight: 500, fontSize: 14 } },
-                  "Valor total liberado com o término destas parcelas: ",
-                  h('span', { className: 'num', style: { color: 'var(--green)', fontSize: 16, fontWeight: 600 } }, formatBRL(totalTerminandoEsteMes))
-                ),
-                h('div', { style: { display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 } },
-                  parcelasTerminandoEsteMes.map(p => h('div', { key: `end-${p.id}`, style: { display: 'flex', justifyContent: 'space-between', fontSize: 13, borderBottom: '1px solid #E5E0D5', paddingBottom: 4 } },
-                    h('span', null, `${p.descricao} (${p.index}/${p.parcelas})`),
-                    h('span', { className: 'num', style: { fontWeight: 600 } }, formatBRL(p.valorParcela))
-                  ))
-                )
-              )
-            )
-          )
-        ),
-
-        screen === "faturas" && h('div', { className: 'form-card' },
-          h('div', { style: { fontSize: 18, fontWeight: 'bold', marginBottom: 14 } }, "Resumo de Faturas por Competência"),
-          h('div', { style: { fontSize: 13, color: 'var(--ink-soft)', marginBottom: 14 } }, "Clique em uma fatura para visualizar e gerenciar seus lançamentos logo abaixo."),
-          h('div', { className: 'list-vertical' },
-            faturasAgrupadas.map((f) => {
-              const fechada = isFaturaFechada(f.competencia);
-              const isSelectedComp = month === f.competencia;
-              return h('div', { className: 'list-item clickable', key: f.competencia, onClick: () => setMonth(f.competencia), style: { borderColor: isSelectedComp ? 'var(--green)' : 'var(--line)', background: isSelectedComp ? 'var(--paper)' : '#fff' } },
-                h('div', { className: 'list-item-main' },
-                  h('div', null,
-                    h('div', { style: { fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 } },
-                      formatMonthLabel(f.competencia),
-                      h('button', { type: 'button', className: 'action-btn', style: { padding: '2px 6px', background: fechada ? 'var(--amber-soft)' : '#fff', borderColor: fechada ? 'var(--amber)' : 'var(--line)' }, onClick: (e) => toggleFaturaFechada(f.competencia, e) },
-                        fechada ? h(Lock, { size: 12, color: 'var(--amber)' }) : h(Unlock, { size: 12, color: 'var(--green)' })
-                      )
-                    ),
-                    h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `${f.qtd} lançamento(s)`)
-                  ),
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                    h('span', { className: 'num', style: { fontSize: 16, fontWeight: 600 } }, formatBRL(f.total)),
-                    isSelectedComp && h('span', { className: 'badge', style: { background: 'var(--green)', color: '#fff' } }, "Ativa")
-                  )
-                )
-              );
-            })
-          ),
-
-          h('div', { style: { marginTop: 24, borderTop: '2px solid var(--line)', paddingTop: 16 } },
-            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 } },
-              h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Lançamentos da Fatura: ${formatMonthLabel(month)}`),
-              h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) },
-                fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }),
-                fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'
-              )
+          installmentsForMonth.length === 0 ? h('p', { style: { color: 'var(--text-muted)' } }, "Nenhum lançamento para este mês.") :
+          installmentsForMonth.map(p => h('div', { key: `${p.id}-${p.index}`, className: 'purchase-row' },
+            h('div', null,
+              h('div', { style: { fontWeight: 600 } }, p.descricao),
+              h('div', { style: { fontSize: 12, color: 'var(--text-muted)' } }, `Parcela ${p.index} de ${p.parcelas}`)
             ),
-            installmentsForMonth.length === 0 ? h('div', { style: { color: 'var(--ink-soft)', fontSize: 13, padding: '16px 0' } }, "Nenhum lançamento para esta fatura.") : h('table', null,
-              h('thead', null,
-                h('tr', null,
-                  h('th', null, "Data"), h('th', null, "Descrição"), h('th', null, "Categoria"), h('th', null, "Subcategoria"), h('th', { className: 'center' }, "Parcela"), h('th', { className: 'right' }, "Valor Parcela"), h('th', { className: 'right' }, "Valor Total")
-                )
-              ),
-              h('tbody', null,
-                installmentsForMonth.map((p) => {
-                  const cat = getCategoria(p.categoriaId);
-                  const sub = getSubcategoria(p.categoriaId, p.subcategoriaId);
-                  return h('tr', { key: `fat-det-${p.id}-${p.index}` },
-                    h('td', null, formatDateBR(p.dataCompra)),
-                    h('td', null, p.descricao),
-                    h('td', null, cat?.nome || '-'),
-                    h('td', null, sub?.nome || '-'),
-                    h('td', { className: 'center' }, h('span', { className: 'badge' }, `${p.index}/${p.parcelas}`)),
-                    h('td', { className: 'right num' }, formatBRL(p.valorParcela)),
-                    h('td', { className: 'right num' }, formatBRL(p.total))
-                  );
-                })
-              ),
-              h('tfoot', null,
-                h('tr', { style: { fontWeight: 'bold', background: '#F2EFE9' } },
-                  h('td', { colSpan: '5', style: { textAlign: 'right', padding: '10px 6px' } }, "Total da Fatura:"),
-                  h('td', { className: 'right num' }, formatBRL(totalValorParcelaTabela)),
-                  h('td', { className: 'right num' }, formatBRL(totalValorTotalTabela))
-                )
-              )
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 12 } },
+              h('span', { style: { fontWeight: 600 } }, formatBRL(p.valorParcela)),
+              h('button', { 
+                className: 'action-btn delete', 
+                onClick: () => setDeleteModal({ 
+                  open: true, 
+                  type: 'purchase', 
+                  id: p.id, 
+                  purchase: p, 
+                  title: 'Excluir Lançamento', 
+                  message: '' 
+                }) 
+              }, "Excluir")
             )
-          )
+          ))
         ),
 
-        modalOpen && h('div', { className: 'modal-overlay' },
-          h('div', { className: 'modal-content', onClick: e => e.stopPropagation() },
-            h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 12 } },
-              h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, editingId ? "Editar Lançamento" : "Novo Lançamento"),
-              h('button', { type: 'button', className: 'icon', onClick: () => setModalOpen(false) }, h(XIcon))
-            ),
-            h('form', { className: 'modal-form', onSubmit: handleSaveLancamento },
-              h('div', { className: 'field full' }, h('label', null, "Descrição *"), h('input', { type: 'text', value: descricao, onChange: e => setDescricao(e.target.value), required: true })),
-              h('div', { className: 'field' }, h('label', null, "Data *"), h('input', { type: 'date', value: dataLancamento, onChange: e => setDataLancamento(e.target.value), required: true })),
-              h('div', { className: 'field' }, h('label', null, "Fatura Mês *"), h('input', { type: 'month', value: faturaMes, onChange: e => setFaturaMes(e.target.value), required: true })),
-              h('div', { className: 'field full' }, h('label', null, "Cartão"), h('select', { value: cartaoId, onChange: e => setCartaoId(e.target.value) }, h('option', { value: "" }, "Sem cartão"), cartoes.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
-              h('div', { className: 'field' }, h('label', null, "Categoria *"), h('select', { value: categoriaId, onChange: e => { setCategoriaId(e.target.value); setSubcategoriaId(''); }, required: true }, h('option', { value: "" }, "Selecione..."), categorias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
-              h('div', { className: 'field' }, h('label', null, "Subcategoria *"), h('select', { value: subcategoriaId, onChange: e => setSubcategoriaId(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), subcategoriasDisponiveis.map(s => h('option', { key: s.id, value: s.id }, s.nome)))),
-              h('div', { className: 'field' }, h('label', null, "Valor Total *"), h('input', { type: 'text', value: valorTotal, onChange: e => handleValorTotalChange(e.target.value), required: true })),
-              h('div', { className: 'field' }, h('label', null, "Valor Parcela"), h('input', { type: 'text', value: valorParcelaInput, onChange: e => handleValorParcelaChange(e.target.value) })),
-              h('div', { className: 'field' }, h('label', null, "Parcela Atual"), h('input', { type: 'number', min: '1', value: parcelaAtual, onChange: e => setParcelaAtual(e.target.value) })),
-              h('div', { className: 'field' }, h('label', null, "Total Parcelas"), h('input', { type: 'number', min: '1', max: '60', value: parcelas, onChange: e => handleParcelasChange(e.target.value) })),
-              formError && h('div', { style: { color: 'var(--red)', fontSize: 12, gridColumn: 'span 2' } }, formError),
-              h('div', { className: 'submit-row' },
-                h('button', { type: 'button', className: 'action-btn', onClick: () => setModalOpen(false) }, "Cancelar"),
-                h('button', { type: 'submit', className: 'primary' }, h(Plus), " Salvar")
-              )
-            )
-          )
+        // Tela de Faturas
+        screen === 'faturas' && h('div', { className: 'card' },
+          h('h3', null, "Fechamento de Faturas"),
+          h('p', { style: { color: 'var(--text-muted)', marginTop: 8 } }, "Controle e acompanhamento das faturas mensais dos cartões.")
         ),
 
-        editCategoriaModal.open && h('div', { className: 'modal-overlay' },
-          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
-            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Editar Categoria"),
-            h('form', { onSubmit: handleSaveEditCategoria, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
-              h('div', { className: 'field' }, h('label', null, "Nome da Categoria *"), h('input', { type: 'text', value: editCategoriaModal.nome, onChange: e => setEditCategoriaModal({ ...editCategoriaModal, nome: e.target.value }), required: true })),
-              h('div', { className: 'field' }, h('label', null, "Cor"), h('div', { className: 'color-swatches' }, CARD_COLORS.map(cor => h('button', { type: 'button', key: cor, className: `color-swatch ${editCategoriaModal.cor === cor ? 'selected' : ''}`, style: { background: cor }, onClick: () => setEditCategoriaModal({ ...editCategoriaModal, cor }) })))),
-              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } },
-                h('button', { type: 'button', className: 'action-btn', onClick: () => setEditCategoriaModal({ open: false, id: null, nome: "", cor: CARD_COLORS[0] }) }, "Cancelar"),
-                h('button', { type: 'submit', className: 'primary' }, "Salvar")
-              )
-            )
-          )
-        ),
-
-        editSubcategoriaModal.open && h('div', { className: 'modal-overlay' },
-          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
-            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Editar Subcategoria"),
-            h('form', { onSubmit: handleSaveEditSubcategoria, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
-              h('div', { className: 'field' }, h('label', null, "Nome da Subcategoria *"), h('input', { type: 'text', value: editSubcategoriaModal.nome, onChange: e => setEditSubcategoriaModal({ ...editSubcategoriaModal, nome: e.target.value }), required: true })),
-              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } },
-                h('button', { type: 'button', className: 'action-btn', onClick: () => setEditSubcategoriaModal({ open: false, catId: null, subId: null, nome: "" }) }, "Cancelar"),
-                h('button', { type: 'submit', className: 'primary' }, "Salvar")
-              )
-            )
-          )
-        ),
-
-        batchDeleteModalOpen && h('div', { className: 'modal-overlay' },
-          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
-            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: 'var(--red)' } }, "Excluir em Lote"),
-            h('div', { style: { fontSize: 13, marginBottom: 14 } }, "Digite ", h('b', null, "EXCLUIR"), ` para apagar os ${selectedIds.length} itens selecionados:`),
-            h('form', { onSubmit: handleBatchDeleteConfirm, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
-              h('input', { type: 'text', placeholder: 'EXCLUIR', value: batchConfirmText, onChange: e => setBatchConfirmText(e.target.value), required: true }),
-              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
-                h('button', { type: 'button', className: 'action-btn', onClick: () => { setBatchDeleteModalOpen(false); setBatchConfirmText(""); } }, "Cancelar"),
-                h('button', { type: 'submit', className: 'danger' }, "Confirmar")
-              )
-            )
-          )
-        ),
-
-       deleteModal.open && h('div', { className: 'modal-overlay' },
+        // Modal de Exclusão Inteligente (Parcelas)
+        deleteModal.open && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
             h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 8 } }, deleteModal.title),
             h('div', { style: { fontSize: 13, marginBottom: 14 } }, 
@@ -1446,6 +422,7 @@ useEffect(() => {
           )
         ),
 
+        // Modal de Cartão
         cartaoModalOpen && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 380 } },
             h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, editingCartaoId ? "Editar Cartão" : "Novo Cartão"),
@@ -1461,6 +438,7 @@ useEffect(() => {
             )
           )
         )
+      );
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(h(FaturaApp));
