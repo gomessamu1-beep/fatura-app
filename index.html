@@ -100,30 +100,23 @@
     }
 
     const BANCOS_FEBRABAN = [
-      { code: "001", name: "001 - Banco do Brasil S.A.", slug: "banco-do-brasil" },
-      { code: "033", name: "033 - Banco Santander (Brasil) S.A.", slug: "santander" },
-      { code: "104", name: "104 - Caixa Econômica Federal", slug: "caixa" },
-      { code: "237", name: "237 - Banco Bradesco S.A.", slug: "bradesco" },
-      { code: "260", name: "260 - Nu Pagamentos S.A. (Nubank)", slug: "nubank" },
-      { code: "077", name: "077 - Banco Inter S.A.", slug: "banco-inter" },
-      { code: "341", name: "341 - Itaú Unibanco S.A.", slug: "itau" },
-      { code: "208", name: "208 - Banco BTG Pactual S.A.", slug: "btg-pactual" },
-      { code: "336", name: "336 - C6 Bank S.A.", slug: "c6-bank" },
-      { code: "290", name: "290 - PagBank (PagSeguro)", slug: "pagseguro" },
-      { code: "748", name: "748 - Banco Cooperativo Sicredi S.A.", slug: "sicredi" },
-      { code: "756", name: "756 - Banco Cooperativo Sicoob S.A.", slug: "sicoob" },
-      { code: "000", name: "Outro Banco / Customizado", slug: "" }
+      { code: "001", name: "001 - Banco do Brasil S.A." },
+      { code: "033", name: "033 - Banco Santander (Brasil) S.A." },
+      { code: "104", name: "104 - Caixa Econômica Federal" },
+      { code: "237", name: "237 - Banco Bradesco S.A." },
+      { code: "260", name: "260 - Nu Pagamentos S.A. (Nubank)" },
+      { code: "077", name: "077 - Banco Inter S.A." },
+      { code: "341", name: "341 - Itaú Unibanco S.A." },
+      { code: "208", name: "208 - Banco BTG Pactual S.A." },
+      { code: "336", name: "336 - C6 Bank S.A." },
+      { code: "290", name: "290 - PagBank (PagSeguro)" },
+      { code: "748", name: "748 - Banco Cooperativo Sicredi S.A." },
+      { code: "756", name: "756 - Banco Cooperativo Sicoob S.A." },
+      { code: "000", name: "Outro Banco / Customizado" }
     ];
 
-    function BankLogo({ code, size = 18 }) {
-      const banco = BANCOS_FEBRABAN.find(b => b.code === code);
-      if (!banco || !banco.slug) return h(CreditCard, { size });
-      return h('img', {
-        src: `https://cdn.svgs.dev/logos/${banco.slug}.svg`,
-        alt: banco.name,
-        style: { width: size, height: size, objectFit: 'contain', borderRadius: 3 },
-        onError: (e) => { e.target.style.display = 'none'; }
-      });
+    function BankIcon({ code, size = 18 }) {
+      return h(CreditCard, { size });
     }
 
     function splitInstallments(total, n) {
@@ -253,7 +246,6 @@
       const [novaCategoriaCor, setNovaCategoriaCor] = useState(CARD_COLORS[0]);
       const [subInputs, setSubInputs] = useState({});
 
-      // Carregar sessão e escutar mudanças de auth
       useEffect(() => {
         if (!supabaseClient) {
           setAuthLoading(false);
@@ -281,10 +273,9 @@
         return () => subscription.unsubscribe();
       }, []);
 
-      // Buscar dados do Supabase
       async function loadDataFromSupabase(userId) {
         setDataLoading(true);
-        const { data, error } = await supabaseClient
+        const { data } = await supabaseClient
           .from('app_data')
           .select('*')
           .eq('user_id', userId)
@@ -297,7 +288,6 @@
           setDeparaList(data.depara || []);
           setFaturasFechadas(data.faturas_fechadas || {});
         } else {
-          // Se não existir registro ainda para o usuário, cria um vazio
           await supabaseClient.from('app_data').upsert({
             user_id: userId,
             purchases: [],
@@ -310,7 +300,6 @@
         setDataLoading(false);
       }
 
-      // Salvar dados no Supabase sempre que houver alteração
       async function saveDataToSupabase(newPurchases, newCartoes, newCategorias, newDepara, newFechadas) {
         if (!session) return;
         const userId = session.user.id;
@@ -325,7 +314,6 @@
         });
       }
 
-      // Funções Wrapper para atualizar o estado e salvar automaticamente na nuvem
       function updatePurchases(updater) {
         setPurchases(prev => {
           const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -1001,7 +989,7 @@
               cartoes.map((c) => h('div', { className: 'list-item', key: c.id },
                 h('div', { className: 'list-item-main' },
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                    h(BankLogo, { code: c.bancoCode, size: 20 }),
+                    h(BankIcon, { size: 20 }),
                     h('span', { className: 'dot', style: { background: c.cor } }),
                     h('span', null, c.nome)
                   ),
@@ -1154,7 +1142,7 @@
                     h('td', null, formatDateBR(p.dataCompra)),
                     h('td', null,
                       h('div', null, p.descricao),
-                      cartao && h('div', { style: { fontSize: 11, color: '#6B6355', display: 'flex', alignItems: 'center', gap: 4 } }, h(BankLogo, { code: cartao.bancoCode, size: 12 }), " ", cartao.nome)
+                      cartao && h('div', { style: { fontSize: 11, color: '#6B6355', display: 'flex', alignItems: 'center', gap: 4 } }, h(BankIcon, { size: 12 }), " ", cartao.nome)
                     ),
                     h('td', null, cat?.nome || '-'),
                     h('td', null, sub?.nome || '-'),
