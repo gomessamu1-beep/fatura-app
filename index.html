@@ -1724,7 +1724,7 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
               h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Relatórios Financeiros"),
               h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
-                h('button', { type: 'button', className: 'action-btn', onClick: exportRelatorioExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
+                h('button', { type: 'button', className: 'action-btn', onClick: relatorioTab === "pagar" ? exportRelatorioExcel : exportRelatorioExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
                 h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " PDF / Imprimir")
               )
             ),
