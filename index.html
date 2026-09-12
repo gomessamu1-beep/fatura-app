@@ -234,8 +234,8 @@
       const [concilCalMes, setConcilCalMes] = useState(currentMonth());
 
       // Modal de Baixa
-      const [baixaModal, setBaixaModal] = useState({ open: false, type: null, id: null, bancoId: "" });
-      const [batchBaixaModal, setBatchBaixaModal] = useState({ open: false, bancoId: "" });
+      const [baixaModal, setBaixaModal] = useState({ open: false, type: null, id: null, bancoId: "", dataBaixa: currentDate() });
+      const [batchBaixaModal, setBatchBaixaModal] = useState({ open: false, bancoId: "", dataBaixa: currentDate() });
       const [batchPagarIds, setBatchPagarIds] = useState([]);
       const [batchReceberIds, setBatchReceberIds] = useState([]);
 
@@ -835,6 +835,17 @@
       function handleSaveLancamento(e) {
         e.preventDefault();
         setFormError("");
+
+        // Trava: se for edição e estiver baixado, não pode alterar
+        if (editingId) {
+          const itemExistente = lancamentoTab === "pagar" ? contasPagar.find(p => p.id === editingId) :
+                                lancamentoTab === "receber" ? contasReceber.find(p => p.id === editingId) : null;
+          if (itemExistente && itemExistente.status === "Baixado") {
+            setFormError("Este lançamento está baixado. Não é permitido fazer alterações em lançamentos baixados.");
+            return;
+          }
+        }
+
         if (lancamentoTab === "cartao" && isFaturaFechada(faturaMes)) { setFormError("A fatura selecionada está fechada."); return; }
         if (isDiaFechado(dataLancamento)) { setFormError("Este dia está fechado e não aceita novos lançamentos."); return; }
         if (isMesFechado(faturaMes)) { setFormError("Este mês de competência está fechado."); return; }
@@ -890,33 +901,41 @@
         setModalOpen(false);
       }
 
-      function executarBaixaIndividual(type, id, bancoId) {
+      function executarBaixaIndividual(type, id, bancoId, dataBaixaStr) {
         if (!bancoId) { alert("Selecione uma conta bancária para efetuar a baixa."); return; }
-        const dataB = currentDate();
-        if (isDiaFechado(dataB)) { alert("O dia atual está fechado para movimentações."); return; }
+        if (!dataBaixaStr) { alert("Informe a data da baixa."); return; }
+        
+        if (isDiaFechado(dataBaixaStr) || isMesFechado(dataBaixaStr.substring(0, 7))) {
+          alert("Não é possível realizar a baixa em um dia ou mês que esteja bloqueado/fechado.");
+          return;
+        }
 
         if (type === "pagar") {
-          updateContasPagar(prev => prev.map(p => p.id === id ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataB } : p));
+          updateContasPagar(prev => prev.map(p => p.id === id ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataBaixaStr } : p));
         } else if (type === "receber") {
-          updateContasReceber(prev => prev.map(p => p.id === id ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataB } : p));
+          updateContasReceber(prev => prev.map(p => p.id === id ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataBaixaStr } : p));
         }
-        setBaixaModal({ open: false, type: null, id: null, bancoId: "" });
+        setBaixaModal({ open: false, type: null, id: null, bancoId: "", dataBaixa: currentDate() });
       }
 
-      function executarBaixaLote(type, bancoId, ids) {
+      function executarBaixaLote(type, bancoId, ids, dataBaixaStr) {
         if (!bancoId) { alert("Selecione uma conta bancária para efetuar a baixa."); return; }
         if (!ids || ids.length === 0) { alert("Nenhum item selecionado."); return; }
-        const dataB = currentDate();
-        if (isDiaFechado(dataB)) { alert("O dia atual está fechado para movimentações."); return; }
+        if (!dataBaixaStr) { alert("Informe a data da baixa."); return; }
+
+        if (isDiaFechado(dataBaixaStr) || isMesFechado(dataBaixaStr.substring(0, 7))) {
+          alert("Não é possível realizar a baixa em lote em um dia ou mês que esteja bloqueado/fechado.");
+          return;
+        }
 
         if (type === "pagar") {
-          updateContasPagar(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataB } : p));
+          updateContasPagar(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataBaixaStr } : p));
           setBatchPagarIds([]);
         } else if (type === "receber") {
-          updateContasReceber(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataB } : p));
+          updateContasReceber(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Baixado", bancoBaixaId: bancoId, dataBaixa: dataBaixaStr } : p));
           setBatchReceberIds([]);
         }
-        setBatchBaixaModal({ open: false, bancoId: "" });
+        setBatchBaixaModal({ open: false, bancoId: "", dataBaixa: currentDate() });
       }
 
       function executarEstornoBaixa(type, id, dataBaixa) {
@@ -1515,7 +1534,7 @@
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowDownCircle), " Contas a Pagar"),
                   h('div', { style: { display: 'flex', gap: 8 } },
                     batchPagarIds.length > 0 && h('div', { style: { display: 'flex', gap: 6 } },
-                      h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "" }) }, `Baixar Selecionados (${batchPagarIds.length})`),
+                      h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, `Baixar Selecionados (${batchPagarIds.length})`),
                       h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('pagar', batchPagarIds) }, `Estornar Baixa (${batchPagarIds.length})`)
                     ),
                     h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar")
@@ -1552,9 +1571,9 @@
                         h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
                           h('span', { className: 'num', style: { fontWeight: 600, fontSize: 16 } }, formatBRL(p.valorParcela)),
                           !isBaixado ? 
-                            h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'pagar', id: p.id, bancoId: contasBancarias[0]?.id || "" }) }, "Baixar") :
+                            h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'pagar', id: p.id, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, "Baixar") :
                             h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => executarEstornoBaixa('pagar', p.id, p.dataBaixa) }, "Estornar Baixa"),
-                          h('button', { type: 'button', className: 'action-btn', onClick: () => {
+                          !isBaixado && h('button', { type: 'button', className: 'action-btn', onClick: () => {
                             setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
                             setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ','));
                             setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
@@ -1577,7 +1596,7 @@
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowUpCircle), " Contas a Receber"),
                   h('div', { style: { display: 'flex', gap: 8 } },
                     batchReceberIds.length > 0 && h('div', { style: { display: 'flex', gap: 6 } },
-                      h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "" }) }, `Baixar Selecionados (${batchReceberIds.length})`),
+                      h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, `Baixar Selecionados (${batchReceberIds.length})`),
                       h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('receber', batchReceberIds) }, `Estornar Baixa (${batchReceberIds.length})`)
                     ),
                     h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber")
@@ -1614,9 +1633,9 @@
                         h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
                           h('span', { className: 'num', style: { fontWeight: 600, fontSize: 16, color: 'var(--green)' } }, formatBRL(p.valorParcela)),
                           !isBaixado ?
-                            h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'receber', id: p.id, bancoId: contasBancarias[0]?.id || "" }) }, "Baixar") :
+                            h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => setBaixaModal({ open: true, type: 'receber', id: p.id, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, "Baixar") :
                             h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => executarEstornoBaixa('receber', p.id, p.dataBaixa) }, "Estornar Baixa"),
-                          h('button', { type: 'button', className: 'action-btn', onClick: () => {
+                          !isBaixado && h('button', { type: 'button', className: 'action-btn', onClick: () => {
                             setEditingId(p.id); setDescricao(p.descricao); setValorTotal(p.total.toFixed(2).replace('.', ','));
                             setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ','));
                             setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month);
@@ -1914,6 +1933,10 @@
         baixaModal.open && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 360 } },
             h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Efetuar Baixa da Conta"),
+            h('div', { className: 'field', style: { marginBottom: 10 } },
+              h('label', null, "Data da Baixa *"),
+              h('input', { type: 'date', value: baixaModal.dataBaixa, onChange: e => setBaixaModal({ ...baixaModal, dataBaixa: e.target.value }) })
+            ),
             h('div', { className: 'field', style: { marginBottom: 14 } },
               h('label', null, "Selecione o Banco / Conta *"),
               h('select', { value: baixaModal.bancoId, onChange: e => setBaixaModal({ ...baixaModal, bancoId: e.target.value }) },
@@ -1922,8 +1945,8 @@
               )
             ),
             h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
-              h('button', { type: 'button', className: 'action-btn', onClick: () => setBaixaModal({ open: false, type: null, id: null, bancoId: "" }) }, "Cancelar"),
-              h('button', { type: 'button', className: 'primary', onClick: () => executarBaixaIndividual(baixaModal.type, baixaModal.id, baixaModal.bancoId) }, "Confirmar Baixa")
+              h('button', { type: 'button', className: 'action-btn', onClick: () => setBaixaModal({ open: false, type: null, id: null, bancoId: "", dataBaixa: currentDate() }) }, "Cancelar"),
+              h('button', { type: 'button', className: 'primary', onClick: () => executarBaixaIndividual(baixaModal.type, baixaModal.id, baixaModal.bancoId, baixaModal.dataBaixa) }, "Confirmar Baixa")
             )
           )
         ),
@@ -1931,6 +1954,10 @@
         batchBaixaModal.open && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 360 } },
             h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, "Baixar Contas Selecionadas em Lote"),
+            h('div', { className: 'field', style: { marginBottom: 10 } },
+              h('label', null, "Data da Baixa *"),
+              h('input', { type: 'date', value: batchBaixaModal.dataBaixa, onChange: e => setBatchBaixaModal({ ...batchBaixaModal, dataBaixa: e.target.value }) })
+            ),
             h('div', { className: 'field', style: { marginBottom: 14 } },
               h('label', null, "Selecione o Banco / Conta *"),
               h('select', { value: batchBaixaModal.bancoId, onChange: e => setBatchBaixaModal({ ...batchBaixaModal, bancoId: e.target.value }) },
@@ -1939,8 +1966,8 @@
               )
             ),
             h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
-              h('button', { type: 'button', className: 'action-btn', onClick: () => setBatchBaixaModal({ open: false, bancoId: "" }) }, "Cancelar"),
-              h('button', { type: 'button', className: 'primary', onClick: () => executarBaixaLote(lancamentoTab, batchBaixaModal.bancoId, lancamentoTab === 'pagar' ? batchPagarIds : batchReceberIds) }, "Confirmar Baixa em Lote")
+              h('button', { type: 'button', className: 'action-btn', onClick: () => setBatchBaixaModal({ open: false, bancoId: "", dataBaixa: currentDate() }) }, "Cancelar"),
+              h('button', { type: 'button', className: 'primary', onClick: () => executarBaixaLote(lancamentoTab, batchBaixaModal.bancoId, lancamentoTab === 'pagar' ? batchPagarIds : batchReceberIds, batchBaixaModal.dataBaixa) }, "Confirmar Baixa em Lote")
             )
           )
         ),
