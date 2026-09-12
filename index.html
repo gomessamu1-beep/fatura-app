@@ -78,11 +78,6 @@
         h('path', { d: 'M18 6 6 18' }), h('path', { d: 'm6 6 12 12' })
       );
     }
-    function Sparkles({ size = 16 }) {
-      return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
-        h('path', { d: 'M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z' })
-      );
-    }
     function FileSpreadsheet({ size = 16 }) {
       return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' },
         h('path', { d: 'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' }), h('path', { d: 'M14 2v4a2 2 0 0 0 2 2h4' }), h('path', { d: 'M8 13h2' }), h('path', { d: 'M14 13h2' }), h('path', { d: 'M8 17h2' }), h('path', { d: 'M14 17h2' })
@@ -490,6 +485,12 @@
         });
       }
 
+      function isFaturaFechada(comp) { return !!faturasFechadas[comp]; }
+      function isDiaFechado(dataStr) { return !!diasFechados[dataStr]; }
+      function isMesFechado(compStr) { return !!mesesFechados[compStr]; }
+
+      const fechadaAtual = isFaturaFechada(month);
+
       const installmentsForMonth = useMemo(() => {
         return purchases.map(p => {
           const idx = monthDiff(p.inicio, month);
@@ -530,6 +531,10 @@
         }).filter(Boolean).sort((a, b) => b.valorParcela - a.valorParcela);
       }, [contasReceber, month]);
 
+      const totalMes = useMemo(() => installmentsForMonth.reduce((s, p) => s + p.valorParcela, 0), [installmentsForMonth]);
+      const totalValorParcelaTabela = useMemo(() => installmentsForMonth.reduce((s, p) => s + p.valorParcela, 0), [installmentsForMonth]);
+      const totalValorTotalTabela = useMemo(() => installmentsForMonth.reduce((s, p) => s + p.total, 0), [installmentsForMonth]);
+
       const faturasAgrupadas = useMemo(() => {
         const resumo = {};
         purchases.forEach(p => {
@@ -567,10 +572,6 @@
         return cat && cat.subcategorias ? cat.subcategorias : [];
       }, [novoDeparaCategoriaId, categorias]);
 
-      const parcelasTerminandoEsteMes = useMemo(() => {
-        return installmentsForMonth.filter(p => p.parcelas > 1 && p.index === p.parcelas);
-      }, [installmentsForMonth]);
-
       async function handleLogin(e) {
         e.preventDefault();
         setAuthError("");
@@ -586,10 +587,6 @@
       async function handleLogout() {
         await supabaseClient.auth.signOut();
       }
-
-      function isFaturaFechada(comp) { return !!faturasFechadas[comp]; }
-      function isDiaFechado(dataStr) { return !!diasFechados[dataStr]; }
-      function isMesFechado(compStr) { return !!mesesFechados[compStr]; }
 
       function toggleDiaFechado(dataStr, e) {
         if (e) e.stopPropagation();
@@ -619,21 +616,6 @@
         const cat = getCategoria(catId);
         if (!cat || !cat.subcategorias) return null;
         return cat.subcategorias.find(s => s.id === subId) || null;
-      }
-
-      function buscarRegraDepara(rawDesc) {
-        const upper = rawDesc.toUpperCase();
-        for (const rule of deparaList) {
-          if (upper.includes(rule.fatura.toUpperCase())) {
-            return {
-              encontrado: true,
-              descricao: rule.importacao ? rule.importacao : rawDesc,
-              categoriaId: rule.categoriaId,
-              subcategoriaId: rule.subcategoriaId
-            };
-          }
-        }
-        return { encontrado: false };
       }
 
       function handleValorTotalChange(val) {
