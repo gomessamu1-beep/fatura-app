@@ -403,7 +403,8 @@
       async function saveDataToSupabase(newPurchases, newPagar, newReceber, newCartoes, newContas, newCategorias, newDepara, newFechadas, newFaturasBaixadas, newDias, newMeses) {
         if (!session) return;
         const userId = session.user.id;
-        await supabaseClient.from('app_data').upsert({
+        
+        const { error } = await supabaseClient.from('app_data').upsert({
           user_id: userId,
           purchases: newPurchases,
           contas_pagar: newPagar,
@@ -417,7 +418,12 @@
           dias_fechados: newDias,
           meses_fechados: newMeses,
           updated_at: new Date()
-        });
+        }, { onConflict: 'user_id' }); // Garante que vai atualizar a linha do usuário
+
+        if (error) {
+          console.error("ERRO DETALHADO DO SUPABASE:", error);
+          alert("Erro ao salvar no banco de dados! Detalhes: " + error.message);
+        }
       }
 
       function updatePurchases(updater) {
