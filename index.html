@@ -342,6 +342,7 @@
 
       const contasPagarForMonth = useMemo(() => {
         const mapped = contasPagar.map(p => {
+          if (p.isLancamentoDireto) return null; // FILTRO: Esconde Lançamentos Diretos da tela Contas a Pagar
           const idx = monthDiff(p.inicio, month); 
           if (idx < 0) return null; 
           if (p.canceladoEm && month >= p.canceladoEm) return null;
@@ -375,6 +376,7 @@
 
       const contasReceberForMonth = useMemo(() => {
         const mapped = contasReceber.map(p => {
+          if (p.isLancamentoDireto) return null; // FILTRO: Esconde Lançamentos Diretos da tela Contas a Receber
           const idx = monthDiff(p.inicio, month); 
           if (idx < 0) return null; 
           if (p.canceladoEm && month >= p.canceladoEm) return null;
@@ -664,7 +666,8 @@
           descricao: lrDescricao.trim(), total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
           inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
           subcategoriaId: lrSubcategoriaId, status: "Baixado", criadoEm: Date.now(),
-          transferenciaId: lrIsTransfer ? transId : null // Vincula as duas pontas
+          transferenciaId: lrIsTransfer ? transId : null,
+          isLancamentoDireto: true // FLAG PARA ESCONDER DE OUTRAS TELAS
         };
 
         if (lrIsTransfer) {
@@ -1224,7 +1227,8 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
               h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Conciliação Bancária"),
               h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
-                h('button', { type: 'button', className: 'primary', style: { padding: '6px 12px', background: '#000', color: '#fff' }, onClick: () => { setLrIsTransfer(false); setLrTipo('despesa'); setLrDescricao(''); setLrData(currentDate()); setLrValor(''); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrError(''); setLrModalOpen(true); } }, h(ArrowRightLeft, { size: 14 }), " Lançamento Direto"),
+                // BOTÃO DE NOVO LANÇAMENTO ATUALIZADO AQUI
+                h('button', { type: 'button', className: 'primary', onClick: () => { setLrIsTransfer(false); setLrTipo('despesa'); setLrDescricao(''); setLrData(currentDate()); setLrValor(''); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportConciliacaoExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir")
               )
@@ -1283,6 +1287,7 @@
           )
         ),
 
+        // MODAL DE EDIÇÃO DE CONCILIAÇÃO (Ações Inteligentes para "Lançamento Direto")
         concilEditModal.open && concilEditModal.item && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420 } },
             h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 12 } }, h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Detalhes do Lançamento"), h('button', { type: 'button', className: 'icon', onClick: () => setConcilEditModal({ open: false, item: null }) }, h(XIcon))),
@@ -1291,7 +1296,20 @@
               h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setConcilEditModal({ open: false, item: null }) }, "Fechar"))
             ) : h('div', null,
               h('div', { style: { fontSize: 14, marginBottom: 10 } }, h('b', null, "Descrição: "), concilEditModal.item.itemRef.descricao), h('div', { style: { fontSize: 14, marginBottom: 10 } }, h('b', null, "Valor: "), showMoney(concilEditModal.item.itemRef.recorrente ? concilEditModal.item.itemRef.valorParcela : (concilEditModal.item.itemRef.valorParcela || concilEditModal.item.itemRef.total))), h('div', { style: { fontSize: 14, marginBottom: 10 } }, h('b', null, "Status: "), concilEditModal.item.itemRef.status), h('div', { style: { fontSize: 14, marginBottom: 16 } }, h('b', null, "Baixado em: "), formatDateBR(concilEditModal.item.itemRef.dataBaixa), ` (${getConta(concilEditModal.item.itemRef.bancoBaixaId)?.nome || '-'})`),
-              h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 20 } }, h('button', { type: 'button', className: 'danger', onClick: () => { const tipo = concilEditModal.item.tipoOrigem; const id = concilEditModal.item.itemRef.id; const dataBaixa = concilEditModal.item.itemRef.dataBaixa; setConcilEditModal({ open: false, item: null }); executarEstornoBaixa(tipo, id, dataBaixa); } }, "Estornar Baixa"), h('div', { style: { display: 'flex', gap: 8 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setConcilEditModal({ open: false, item: null }) }, "Cancelar"), h('button', { type: 'button', className: 'primary', onClick: () => { const ref = concilEditModal.item.itemRef; const tipo = concilEditModal.item.tipoOrigem; setConcilEditModal({ open: false, item: null }); setEditingId(ref.id); setDescricao(ref.descricao); setValorTotal(ref.total.toFixed(2).replace('.', ',')); setValorParcelaInput(ref.recorrente ? '' : (ref.valorParcela || ref.total).toFixed(2).replace('.', ',')); setDataLancamento(ref.dataCompra || currentDate()); setFaturaMes(ref.inicio || month); setParcelas(ref.parcelas.toString()); setParcelaAtual((ref.parcelaInicial || 1).toString()); setCategoriaId(ref.categoriaId || ''); setSubcategoriaId(ref.subcategoriaId || ''); setIsRecorrente(!!ref.recorrente); setLancamentoTab(tipo); setModalOpen(true); } }, "Editar")))
+              
+              (() => {
+                  const isDireto = concilEditModal.item.itemRef.isLancamentoDireto;
+                  return h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 20 } },
+                      isDireto 
+                      ? h('button', { type: 'button', className: 'danger', onClick: () => { setDeleteModal({ open: true, type: concilEditModal.item.tipoOrigem, id: concilEditModal.item.itemRef.id, purchase: concilEditModal.item.itemRef, title: 'Excluir Lançamento Direto', message: 'Este é um lançamento direto e será permanentemente apagado. Deseja excluir?', option: 'all' }); setConcilEditModal({ open: false, item: null }); } }, h(Trash2, { size: 14 }), " Excluir") 
+                      : h('button', { type: 'button', className: 'danger', onClick: () => { const tipo = concilEditModal.item.tipoOrigem; const id = concilEditModal.item.itemRef.id; const dataBaixa = concilEditModal.item.itemRef.dataBaixa; setConcilEditModal({ open: false, item: null }); executarEstornoBaixa(tipo, id, dataBaixa); } }, "Estornar Baixa"),
+                      
+                      h('div', { style: { display: 'flex', gap: 8 } }, 
+                          h('button', { type: 'button', className: 'action-btn', onClick: () => setConcilEditModal({ open: false, item: null }) }, "Cancelar"), 
+                          !isDireto && h('button', { type: 'button', className: 'primary', onClick: () => { const ref = concilEditModal.item.itemRef; const tipo = concilEditModal.item.tipoOrigem; setConcilEditModal({ open: false, item: null }); setEditingId(ref.id); setDescricao(ref.descricao); setValorTotal(ref.total.toFixed(2).replace('.', ',')); setValorParcelaInput(ref.recorrente ? '' : (ref.valorParcela || ref.total).toFixed(2).replace('.', ',')); setDataLancamento(ref.dataCompra || currentDate()); setFaturaMes(ref.inicio || month); setParcelas(ref.parcelas.toString()); setParcelaAtual((ref.parcelaInicial || 1).toString()); setCategoriaId(ref.categoriaId || ''); setSubcategoriaId(ref.subcategoriaId || ''); setIsRecorrente(!!ref.recorrente); setLancamentoTab(tipo); setModalOpen(true); } }, "Editar")
+                      )
+                  );
+              })()
             )
           )
         ),
