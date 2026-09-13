@@ -206,7 +206,7 @@
       const [valorTotal, setValorTotal] = useState("");
       const [valorParcelaInput, setValorParcelaInput] = useState("");
       const [dataLancamento, setDataLancamento] = useState(currentDate());
-      const [faturaMes, setFaturaMes] = useState(currentMonth());
+      const [faturaMes, setFaturaMes] = useState(""); // Inicializa em branco para forçar seleção
       const [parcelas, setParcelas] = useState("1");
       const [parcelaAtual, setParcelaAtual] = useState("1");
       const [cartaoId, setCartaoId] = useState("");
@@ -289,26 +289,6 @@
       function isFaturaFechada(comp) { return faturasFechadas[comp] ? true : false; }
       function isDiaFechado(dataStr) { return !!diasFechados[dataStr]; }
       function isMesFechado(compStr) { return !!mesesFechados[compStr]; }
-
-      // Auto-calcular a competência da fatura baseado no dia de fechamento
-      function getFaturaCompetencia(dataStr, cid) {
-        if (!dataStr) return currentMonth();
-        if (!cid) return dataStr.substring(0, 7);
-        const c = getCartao(cid);
-        const diaFechamento = c?.fechamento ? parseInt(c.fechamento, 10) : null;
-        if (!diaFechamento) return dataStr.substring(0, 7);
-        
-        const parts = dataStr.split('-');
-        let ano = parseInt(parts[0], 10);
-        let mes = parseInt(parts[1], 10);
-        let dia = parseInt(parts[2], 10);
-        
-        if (dia >= diaFechamento) {
-          mes += 1;
-          if (mes > 12) { mes = 1; ano += 1; }
-        }
-        return `${ano}-${String(mes).padStart(2, '0')}`;
-      }
 
       const fechadaAtual = isFaturaFechada(month);
 
@@ -403,7 +383,6 @@
         const cards = {};
         let temSemCartao = false;
         
-        // Calcula total por cartao para a competencia informada
         installmentsForMonth.forEach(p => {
           if (!p.cartaoId) {
              temSemCartao = true;
@@ -415,7 +394,7 @@
 
         if (temSemCartao) {
             alert("⚠️ Não é possível fechar a fatura!\n\nExistem lançamentos sem cartão vinculado neste mês. Por favor, edite esses lançamentos informando o cartão, e tente novamente.");
-            return; // Bloqueia o modal de abrir e não deixa gerar contas a pagar quebrada
+            return;
         }
 
         Object.keys(cards).forEach(cid => {
@@ -567,7 +546,6 @@
         e.preventDefault(); setFormError("");
         if (editingId) { const itemExistente = lancamentoTab === "pagar" ? contasPagar.find(p => p.id === editingId) : lancamentoTab === "receber" ? contasReceber.find(p => p.id === editingId) : null; if (itemExistente && itemExistente.status === "Baixado") return setFormError("Não é permitido alterar lançamentos baixados."); }
         
-        // Bloqueia gravação sem cartão E permite corrigir cartão faltante em fatura já fechada
         if (lancamentoTab === "cartao") {
             if (!cartaoId) return setFormError("É obrigatório selecionar um cartão.");
             
@@ -584,9 +562,10 @@
 
         const total = parseValorInput(valorTotal); const n = parseInt(parcelas, 10); const atual = parseInt(parcelaAtual, 10);
         
-        if (!descricao.trim() || !categoriaId || !subcategoriaId || !Number.isFinite(total) || total <= 0) return setFormError("Preencha todos os campos obrigatórios corretamente.");
+        // Verifica se a competência foi preenchida
+        if (!descricao.trim() || !categoriaId || !subcategoriaId || !Number.isFinite(total) || total <= 0 || !faturaMes) return setFormError("Preencha todos os campos obrigatórios corretamente, incluindo a Competência Mês.");
 
-        const competenciaInicial = faturaMes || month || currentMonth();
+        const competenciaInicial = faturaMes;
         const novoRegistro = { id: editingId || uid(), descricao: descricao.trim(), total, dataCompra: dataLancamento || currentDate(), parcelas: n, parcelaInicial: atual, inicio: competenciaInicial, cartaoId: null, categoriaId, subcategoriaId, status: "Em aberto", bancoBaixaId: null, dataBaixa: null, criadoEm: Date.now() };
 
         if (lancamentoTab === "receber") { if (editingId) updateContasReceber(prev => prev.map(p => p.id === editingId ? { ...p, ...novoRegistro, status: p.status, bancoBaixaId: p.bancoBaixaId, dataBaixa: p.dataBaixa } : p)); else updateContasReceber(prev => [...prev, novoRegistro]); }
@@ -917,7 +896,7 @@
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(CreditCard), " Lançamentos do cartão"),
                   h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } }, 
                     h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) }, fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }), fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'),
-                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setDataLancamento(currentDate()); setFaturaMes(getFaturaCompetencia(currentDate(), '')); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
+                    h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setDataLancamento(currentDate()); setFaturaMes(''); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
                   )
                 ),
                 h('div', { className: 'nav-month' }, h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)), h('div', { className: 'month-label' }, formatMonthLabel(month)), h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))),
@@ -955,7 +934,7 @@
               h('div', { className: 'top', style: { margin: 0, border: 'none', background: 'transparent', padding: 0 } },
                 h('div', { className: 'brand' },
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowDownCircle), " Contas a Pagar"),
-                  h('div', { style: { display: 'flex', gap: 8 } }, batchPagarIds.length > 0 && h('div', { style: { display: 'flex', gap: 6 } }, h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, `Baixar Selecionados (${batchPagarIds.length})`), h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('pagar', batchPagarIds) }, `Estornar Baixa (${batchPagarIds.length})`), h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) }, `Excluir (${batchPagarIds.length})`)), h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('pagar'); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar"))
+                  h('div', { style: { display: 'flex', gap: 8 } }, batchPagarIds.length > 0 && h('div', { style: { display: 'flex', gap: 6 } }, h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, `Baixar Selecionados (${batchPagarIds.length})`), h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('pagar', batchPagarIds) }, `Estornar Baixa (${batchPagarIds.length})`), h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) }, `Excluir (${batchPagarIds.length})`)), h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setDataLancamento(currentDate()); setFaturaMes(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('pagar'); setModalOpen(true); } }, h(Plus), " Nova Conta a Pagar"))
                 ),
                 h('div', { className: 'nav-month' }, h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)), h('div', { className: 'month-label' }, formatMonthLabel(month)), h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))),
                 h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 8, background: '#FAF8F2', padding: '8px 12px', borderRadius: 5, border: '1px solid var(--line)' } }, h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, "Exibição dos lançamentos:"), h('select', { value: faturaOrdem, onChange: e => setFaturaOrdem(e.target.value), style: { width: '220px', padding: '6px' } }, h('option', { value: "atual" }, "Mais atual primeiro"), h('option', { value: "compra" }, "Ordem cronológica"))),
@@ -994,7 +973,7 @@
               h('div', { className: 'top', style: { margin: 0, border: 'none', background: 'transparent', padding: 0 } },
                 h('div', { className: 'brand' },
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h(ArrowUpCircle), " Contas a Receber"),
-                  h('div', { style: { display: 'flex', gap: 8 } }, batchReceberIds.length > 0 && h('div', { style: { display: 'flex', gap: 6 } }, h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, `Baixar Selecionados (${batchReceberIds.length})`), h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('receber', batchReceberIds) }, `Estornar Baixa (${batchReceberIds.length})`), h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) }, `Excluir (${batchReceberIds.length})`)), h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('receber'); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber"))
+                  h('div', { style: { display: 'flex', gap: 8 } }, batchReceberIds.length > 0 && h('div', { style: { display: 'flex', gap: 6 } }, h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchBaixaModal({ open: true, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }) }, `Baixar Selecionados (${batchReceberIds.length})`), h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => executarEstornoLote('receber', batchReceberIds) }, `Estornar Baixa (${batchReceberIds.length})`), h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) }, `Excluir (${batchReceberIds.length})`)), h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setDataLancamento(currentDate()); setFaturaMes(''); setParcelas('1'); setParcelaAtual('1'); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('receber'); setModalOpen(true); } }, h(Plus), " Nova Conta a Receber"))
                 ),
                 h('div', { className: 'nav-month' }, h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)), h('div', { className: 'month-label' }, formatMonthLabel(month)), h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))),
                 h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 8, background: '#FAF8F2', padding: '8px 12px', borderRadius: 5, border: '1px solid var(--line)' } }, h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, "Exibição dos lançamentos:"), h('select', { value: faturaOrdem, onChange: e => setFaturaOrdem(e.target.value), style: { width: '220px', padding: '6px' } }, h('option', { value: "atual" }, "Mais atual primeiro"), h('option', { value: "compra" }, "Ordem cronológica"))),
@@ -1031,7 +1010,7 @@
           ),
 
           screen === "faturas" && h('div', { className: 'form-card' },
-            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } }, h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Resumo de Faturas por Ano"), h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setDataLancamento(currentDate()); setFaturaMes(getFaturaCompetencia(currentDate(), '')); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")),
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } }, h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Resumo de Faturas por Ano"), h('button', { type: 'button', className: 'primary', onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setDataLancamento(currentDate()); setFaturaMes(''); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")),
             h('div', { style: { fontSize: 13, color: 'var(--ink-soft)', marginBottom: 20 } }, "Navegue pelos anos e clique em um mês para visualizar e gerenciar seus lançamentos logo abaixo."),
             h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 20 } }, h('button', { className: 'action-btn', onClick: () => setFaturaAno(a => (parseInt(a) - 1).toString()) }, h(ChevronLeft)), h('div', { style: { fontSize: 22, fontWeight: 'bold' } }, faturaAno), h('button', { className: 'action-btn', onClick: () => setFaturaAno(a => (parseInt(a) + 1).toString()) }, h(ChevronRight))),
             h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' } }, Array.from({ length: 12 }).map((_, i) => {
@@ -1043,7 +1022,7 @@
                 h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, `Lançamentos da Fatura: ${formatMonthLabel(month)}`),
                 h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
                   h('button', { className: `lock-btn ${fechadaAtual ? 'closed' : ''}`, onClick: (e) => toggleFaturaFechada(month, e) }, fechadaAtual ? h(Lock, { size: 14, color: 'var(--amber)' }) : h(Unlock, { size: 14 }), fechadaAtual ? ' Fatura Fechada' : ' Fatura Aberta'),
-                  h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setDataLancamento(currentDate()); setFaturaMes(getFaturaCompetencia(currentDate(), '')); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
+                  h('button', { type: 'button', className: 'primary', style: { fontSize: 12, padding: '4px 8px' }, onClick: () => { setEditingId(null); setDescricao(''); setValorTotal(''); setValorParcelaInput(''); setDataLancamento(currentDate()); setFaturaMes(''); setParcelas('1'); setParcelaAtual('1'); setCartaoId(''); setCategoriaId(''); setSubcategoriaId(''); setLancamentoTab('cartao'); setModalOpen(true); }, disabled: fechadaAtual }, h(Plus), " Novo Lançamento")
                 )
               ),
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 10, background: '#FAF8F2', padding: '8px 12px', borderRadius: 5, border: '1px solid var(--line)' } }, h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, "Exibição dos lançamentos:"), h('select', { value: faturaOrdem, onChange: e => setFaturaOrdem(e.target.value), style: { width: '220px', padding: '6px' } }, h('option', { value: "atual" }, "Mais atual primeiro"), h('option', { value: "compra" }, "Ordem cronológica"))),
@@ -1151,10 +1130,10 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 12 } }, h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, editingId ? "Editar Lançamento" : (lancamentoTab === "receber" ? "Nova Conta a Receber" : lancamentoTab === "pagar" ? "Nova Conta a Pagar" : "Novo Lançamento")), h('button', { type: 'button', className: 'icon', onClick: () => setModalOpen(false) }, h(XIcon))),
             h('form', { className: 'modal-form', onSubmit: handleSaveLancamento },
               h('div', { className: 'field full' }, h('label', null, "Descrição *"), h('input', { type: 'text', value: descricao, onChange: e => setDescricao(e.target.value), required: true })),
-              h('div', { className: 'field' }, h('label', null, "Data *"), h('input', { type: 'date', value: dataLancamento, onChange: e => { setDataLancamento(e.target.value); if (lancamentoTab === 'cartao') setFaturaMes(getFaturaCompetencia(e.target.value, cartaoId)); }, required: true })), 
+              h('div', { className: 'field' }, h('label', null, "Data *"), h('input', { type: 'date', value: dataLancamento, onChange: e => setDataLancamento(e.target.value), required: true })), 
               h('div', { className: 'field' }, h('label', null, "Competência Mês *"), h('input', { type: 'month', value: faturaMes, onChange: e => setFaturaMes(e.target.value), required: true })),
               
-              lancamentoTab === "cartao" && h('div', { className: 'field full' }, h('label', null, "Cartão *"), h('select', { value: cartaoId, onChange: e => { setCartaoId(e.target.value); if (lancamentoTab === 'cartao') setFaturaMes(getFaturaCompetencia(dataLancamento, e.target.value)); }, required: true }, h('option', { value: "" }, "Selecione o cartão..."), cartoes.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
+              lancamentoTab === "cartao" && h('div', { className: 'field full' }, h('label', null, "Cartão *"), h('select', { value: cartaoId, onChange: e => setCartaoId(e.target.value), required: true }, h('option', { value: "" }, "Selecione o cartão..."), cartoes.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
               
               h('div', { className: 'field' }, h('label', null, "Categoria *"), h('select', { value: categoriaId, onChange: e => { setCategoriaId(e.target.value); setSubcategoriaId(''); }, required: true }, h('option', { value: "" }, "Selecione..."), categoriasDisponiveisModal.map(c => h('option', { key: c.id, value: c.id }, c.nome)))), h('div', { className: 'field' }, h('label', null, "Subcategoria *"), h('select', { value: subcategoriaId, onChange: e => setSubcategoriaId(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), subcategoriasDisponiveis.map(s => h('option', { key: s.id, value: s.id }, s.nome)))),
               h('div', { className: 'field' }, h('label', null, "Valor Total *"), h('input', { type: 'text', value: valorTotal, onChange: e => handleValorTotalChange(e.target.value), required: true })), h('div', { className: 'field' }, h('label', null, "Valor Parcela"), h('input', { type: 'text', value: valorParcelaInput, onChange: e => handleValorParcelaChange(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Parcela Atual"), h('input', { type: 'number', min: '1', value: parcelaAtual, onChange: e => setParcelaAtual(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Total Parcelas"), h('input', { type: 'number', min: '1', max: '60', value: parcelas, onChange: e => handleParcelasChange(e.target.value) })),
