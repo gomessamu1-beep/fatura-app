@@ -712,7 +712,7 @@
 
       if (authLoading) return h('div', { style: { textAlign: 'center', padding: '50px', fontFamily: 'sans-serif' } }, "Carregando sistema...");
       if (!session) {
-        return h('div', { className: 'fatura-app', style: { display: 'flex', alignItems: 'center', justify-content: 'center', minHeight: '100vh', background: 'var(--paper)' } },
+        return h('div', { className: 'fatura-app', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--paper)' } },
           h('div', { className: 'form-card', style: { width: '100%', maxWidth: '420px', padding: '36px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', borderRadius: '8px' } },
             h('div', { style: { textAlign: 'center', marginBottom: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '20px', fontWeight: 'bold', color: 'var(--ink)' } }, h(Lock, { size: 22 }), " Acesso Restrito"),
             h('form', { onSubmit: handleLogin, style: { display: 'flex', flexDirection: 'column', gap: '16px' } },
@@ -1180,7 +1180,7 @@
                 h('div', { className: 'field', style: { width: 140 } }, h('label', null, "Vencimento"), h('input', { type: 'date', value: fecharFaturaModal.vencimentos[t.cartaoId] || '', onChange: e => setFecharFaturaModal(prev => ({ ...prev, vencimentos: { ...prev.vencimentos, [t.cartaoId]: e.target.value } })) }))
               ))
             ),
-            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setFecharFaturaModal({ open: false, comp: "", totais: [], vencimentos: {} }) }, "Cancelar"), h('button', { type: 'button', className: 'primary', onClick: confirmarFecharFatura }, h(CheckCircle, { size: 16 }), " Fechar e Gerar Pagar"))
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setFecharFaturaModal({ open: false, comp: "", totais: [], vencimentos: {} }) }, "Cancelar"), h('button', { type: 'button', className: 'primary', onClick: confirmarFecharFatura }, h(CheckCircle, { size: 16 }), " Gerar Contas a Pagar"))
           )
         ),
 
