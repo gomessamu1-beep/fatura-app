@@ -556,22 +556,40 @@
       function handleUploadTxtFile(e) { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (evt) => { setTxtCategoriasContent(evt.target.result); }; reader.readAsText(file); if (txtInputRef.current) txtInputRef.current.value = ""; }
 
       function handleConfirmDelete() {
-        const { type, id, subId, option } = deleteModal;
+        const { type, id, subId, option, purchase } = deleteModal;
+        
+        // Verifica se o item a ser excluído tem um vínculo de transferência
+        const transId = purchase?.transferenciaId;
         
         const updater = (prev) => {
           if (option === 'current') return prev.map(p => p.id === id ? { ...p, mesesExcluidos: [...(p.mesesExcluidos || []), month] } : p);
           else if (option === 'future') return prev.map(p => p.id === id ? { ...p, canceladoEm: month } : p);
-          else return prev.filter(p => p.id !== id);
+          else {
+             if (transId) return prev.filter(p => p.transferenciaId !== transId && p.id !== id); 
+             return prev.filter(p => p.id !== id);
+          }
         };
 
+        const transUpdater = (prev) => {
+          if (transId) return prev.filter(p => p.transferenciaId !== transId);
+          return prev;
+        }
+
         if (type === "purchase") updatePurchases(updater);
-        else if (type === "pagar") updateContasPagar(updater);
-        else if (type === "receber") updateContasReceber(updater);
+        else if (type === "pagar") { 
+          updateContasPagar(updater); 
+          if (transId) updateContasReceber(transUpdater); // Limpa o crédito vinculado
+        }
+        else if (type === "receber") { 
+          updateContasReceber(updater); 
+          if (transId) updateContasPagar(transUpdater); // Limpa o débito vinculado
+        }
         else if (type === "cartao") updateCartoes(prev => prev.filter(c => c.id !== id)); 
         else if (type === "conta") updateContasBancarias(prev => prev.filter(c => c.id !== id)); 
         else if (type === "categoria") updateCategorias(prev => prev.filter(c => c.id !== id)); 
         else if (type === "subcategoria") updateCategorias(prev => prev.map(c => c.id === id ? { ...c, subcategorias: c.subcategorias.filter(s => s.id !== subId) } : c)); 
         else if (type === "depara") updateDepara(prev => prev.filter(d => d.id !== id));
+        
         setDeleteModal({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "", option: "all" });
       }
 
@@ -639,10 +657,14 @@
           return setLrError("Dia ou mês bloqueado/fechado. Abra-o para fazer o lançamento.");
         }
 
+        // NOVO: Gera um ID de grupo para vincular a entrada e a saída
+        const transId = uid(); 
+
         const baseEntry = {
           descricao: lrDescricao.trim(), total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
           inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
-          subcategoriaId: lrSubcategoriaId, status: "Baixado", criadoEm: Date.now()
+          subcategoriaId: lrSubcategoriaId, status: "Baixado", criadoEm: Date.now(),
+          transferenciaId: lrIsTransfer ? transId : null // Vincula as duas pontas
         };
 
         if (lrIsTransfer) {
@@ -671,8 +693,24 @@
       }
 
       function executarEstornoBaixa(type, id, dataBaixa) {
-        if (dataBaixa && (isDiaFechado(dataBaixa) || isMesFechado(dataBaixa.substring(0, 7)))) return alert("Dia ou mês bloqueado."); if (!window.confirm("Deseja estornar baixa?")) return;
-        if (type === "pagar") updateContasPagar(prev => prev.map(p => p.id === id ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null } : p)); else if (type === "receber") updateContasReceber(prev => prev.map(p => p.id === id ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null } : p));
+        if (dataBaixa && (isDiaFechado(dataBaixa) || isMesFechado(dataBaixa.substring(0, 7)))) return alert("Dia ou mês bloqueado."); 
+        if (!window.confirm("Deseja estornar baixa?")) return;
+        
+        // Identifica se é uma transferência olhando o item original
+        let transId = null;
+        if (type === "pagar") { const item = contasPagar.find(p => p.id === id); transId = item?.transferenciaId; }
+        else if (type === "receber") { const item = contasReceber.find(p => p.id === id); transId = item?.transferenciaId; }
+
+        const estornoUpdater = prev => prev.map(p => (p.id === id || (transId && p.transferenciaId === transId)) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null } : p);
+
+        if (type === "pagar") { 
+          updateContasPagar(estornoUpdater); 
+          if (transId) updateContasReceber(estornoUpdater); 
+        } 
+        else if (type === "receber") { 
+          updateContasReceber(estornoUpdater); 
+          if (transId) updateContasPagar(estornoUpdater); 
+        }
       }
 
       function executarEstornoLote(type, ids) {
@@ -1218,14 +1256,9 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 12 } }, h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Lançamento Direto na Conciliação"), h('button', { type: 'button', className: 'icon', onClick: () => setLrModalOpen(false) }, h(XIcon))),
             h('form', { className: 'modal-form', onSubmit: handleSaveLancamentoRapido },
               
-              h('div', { className: 'field full', style: { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 8, background: 'var(--paper)', padding: 10, borderRadius: 6, border: '1px solid var(--line)' } }, 
-                h('input', { type: 'checkbox', checked: lrIsTransfer, onChange: e => setLrIsTransfer(e.target.checked), style: { width: 18, height: 18, cursor: 'pointer' } }), 
-                h('label', { style: { fontSize: 14, fontWeight: 'bold', color: 'var(--ink)', cursor: 'pointer' }, onClick: () => setLrIsTransfer(!lrIsTransfer) }, "Este lançamento é uma transferência entre minhas contas")
-              ),
-              
-              !lrIsTransfer && h('div', { className: 'field full', style: { display: 'flex', gap: 16, marginBottom: 8 } },
-                h('label', { style: { display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontWeight: 'bold', color: lrTipo === 'despesa' ? 'var(--red)' : 'var(--ink-soft)' } }, h('input', { type: 'radio', name: 'lrTipo', checked: lrTipo === 'despesa', onChange: () => setLrTipo('despesa') }), "🔴 Saída (Despesa / Tarifa)"),
-                h('label', { style: { display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontWeight: 'bold', color: lrTipo === 'receita' ? 'var(--green)' : 'var(--ink-soft)' } }, h('input', { type: 'radio', name: 'lrTipo', checked: lrTipo === 'receita', onChange: () => setLrTipo('receita') }), "🟢 Entrada (Receita / Depósito)")
+              !lrIsTransfer && h('div', { className: 'field full', style: { display: 'flex', flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 16, paddingBottom: 12, borderBottom: '1px dashed var(--line)' } },
+                h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'bold', color: lrTipo === 'despesa' ? 'var(--red)' : 'var(--ink-soft)' } }, h('input', { type: 'radio', name: 'lrTipo', checked: lrTipo === 'despesa', onChange: () => setLrTipo('despesa'), style: { width: 'auto', margin: 0 } }), "🔴 Saída (Despesa / Tarifa)"),
+                h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'bold', color: lrTipo === 'receita' ? 'var(--green)' : 'var(--ink-soft)' } }, h('input', { type: 'radio', name: 'lrTipo', checked: lrTipo === 'receita', onChange: () => setLrTipo('receita'), style: { width: 'auto', margin: 0 } }), "🟢 Entrada (Receita / Depósito)")
               ),
               
               h('div', { className: 'field full' }, h('label', null, "Descrição *"), h('input', { type: 'text', value: lrDescricao, onChange: e => setLrDescricao(e.target.value), required: true, placeholder: lrIsTransfer ? 'Ex: Transferência para Aplicação' : 'Ex: Tarifa de Manutenção' })),
@@ -1233,14 +1266,19 @@
               h('div', { className: 'field' }, h('label', null, "Data *"), h('input', { type: 'date', value: lrData, onChange: e => setLrData(e.target.value), required: true })),
               h('div', { className: 'field' }, h('label', null, "Valor *"), h('input', { type: 'text', value: lrValor, onChange: e => setLrValor(e.target.value), required: true, placeholder: '0,00' })),
               
-              h('div', { className: 'field' }, h('label', null, lrIsTransfer ? "Conta de Origem (Onde sai o dinheiro) *" : "Conta Bancária *"), h('select', { value: lrContaOrigem, onChange: e => setLrContaOrigem(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
-              lrIsTransfer && h('div', { className: 'field' }, h('label', null, "Conta de Destino (Onde entra o dinheiro) *"), h('select', { value: lrContaDestino, onChange: e => setLrContaDestino(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
+              h('div', { className: 'field' }, h('label', null, lrIsTransfer ? "Conta de Origem *" : "Conta Bancária *"), h('select', { value: lrContaOrigem, onChange: e => setLrContaOrigem(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
+              lrIsTransfer && h('div', { className: 'field' }, h('label', null, "Conta de Destino *"), h('select', { value: lrContaDestino, onChange: e => setLrContaDestino(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
               
               h('div', { className: 'field' }, h('label', null, "Categoria *"), h('select', { value: lrCategoriaId, onChange: e => { setLrCategoriaId(e.target.value); setLrSubcategoriaId(''); }, required: true }, h('option', { value: "" }, "Selecione..."), categorias.filter(c => lrIsTransfer ? true : (c.tipo || 'despesa') === lrTipo).map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
               h('div', { className: 'field' }, h('label', null, "Subcategoria *"), h('select', { value: lrSubcategoriaId, onChange: e => setLrSubcategoriaId(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), subcategoriasLrDisponiveis.map(s => h('option', { key: s.id, value: s.id }, s.nome)))),
               
+              h('div', { className: 'field full', style: { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, marginBottom: 8, background: 'var(--paper)', padding: '12px 14px', borderRadius: 6, border: '1px solid var(--line)' } }, 
+                h('input', { type: 'checkbox', checked: lrIsTransfer, onChange: e => setLrIsTransfer(e.target.checked), style: { width: 18, height: 18, cursor: 'pointer', margin: 0 } }), 
+                h('label', { style: { fontSize: 14, fontWeight: 'bold', color: 'var(--ink)', cursor: 'pointer', margin: 0 }, onClick: () => setLrIsTransfer(!lrIsTransfer) }, "Este lançamento é uma transferência entre minhas contas")
+              ),
+
               lrError && h('div', { style: { color: 'var(--red)', fontSize: 12, gridColumn: 'span 2' } }, lrError),
-              h('div', { className: 'submit-row' }, h('button', { type: 'button', className: 'action-btn', onClick: () => setLrModalOpen(false) }, "Cancelar"), h('button', { type: 'submit', className: 'primary' }, h(CheckCircle, {size: 16}), " Lançar e Baixar"))
+              h('div', { className: 'submit-row', style: { marginTop: 8 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setLrModalOpen(false) }, "Cancelar"), h('button', { type: 'submit', className: 'primary' }, h(CheckCircle, {size: 16}), " Lançar"))
             )
           )
         ),
