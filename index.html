@@ -339,6 +339,10 @@
       const totalReceberParcelaTabela = useMemo(() => contasReceberForMonth.reduce((s, p) => s + p.valorParcela, 0), [contasReceberForMonth]);
       const totalReceberTotalTabela = useMemo(() => contasReceberForMonth.reduce((s, p) => s + p.total, 0), [contasReceberForMonth]);
 
+      const totalTerminandoCartao = useMemo(() => terminandoCartao.reduce((s, p) => s + p.valorParcela, 0), [terminandoCartao]);
+      const totalTerminandoPagar = useMemo(() => terminandoPagar.reduce((s, p) => s + p.valorParcela, 0), [terminandoPagar]);
+      const totalTerminandoReceber = useMemo(() => terminandoReceber.reduce((s, p) => s + p.valorParcela, 0), [terminandoReceber]);
+
       const faturasAgrupadas = useMemo(() => {
         const resumo = {};
         purchases.forEach(p => {
@@ -466,7 +470,8 @@
         if (isDiaFechado(dataLancamento)) return setFormError("Este dia está fechado."); if (isMesFechado(faturaMes)) return setFormError("Mês de competência fechado.");
 
         const total = parseValorInput(valorTotal); const n = parseInt(parcelas, 10); const atual = parseInt(parcelaAtual, 10);
-        if (!descricao.trim() || !categoriaId || !subcategoriaId || !Number.isFinite(total) || total <= 0) return setFormError("Preencha todos os campos obrigatórios corretamente.");
+        // NOVO: Validação obrigatória para Cartão
+        if (!descricao.trim() || !categoriaId || !subcategoriaId || !Number.isFinite(total) || total <= 0 || (lancamentoTab === 'cartao' && !cartaoId)) return setFormError("Preencha todos os campos obrigatórios corretamente.");
 
         const competenciaInicial = faturaMes || month || currentMonth();
         const novoRegistro = { id: editingId || uid(), descricao: descricao.trim(), total, dataCompra: dataLancamento || currentDate(), parcelas: n, parcelaInicial: atual, inicio: competenciaInicial, cartaoId: null, categoriaId, subcategoriaId, status: "Em aberto", bancoBaixaId: null, dataBaixa: null, criadoEm: Date.now() };
@@ -706,7 +711,6 @@
 
         h('div', { className: 'main-content' },
 
-          // NOVO: Cabeçalho Global (Olho) em todas as telas
           h('div', { className: 'global-header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--line)' } },
             h('h2', { style: { margin: 0, fontSize: '20px', color: 'var(--ink)' } }, 
               screen === 'cadastros' ? 'Cadastros e Configurações' :
@@ -784,7 +788,13 @@
                   h('div', { style: { display: 'flex', alignItems: 'center', gap: 10 } }, h('span', null, installmentsForMonth.length === 0 ? "Nenhum lançamento neste mês" : `${installmentsForMonth.length} lançamento(s)`), selectedCartaoIds.length > 0 && h('button', { type: 'button', className: 'danger', style: { fontSize: 12, padding: '4px 10px' }, onClick: () => setBatchDeleteModalOpen(true) }, h(Trash2, { size: 14 }), ` Excluir selecionados (${selectedCartaoIds.length})`)),
                   h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, h('input', { type: 'file', accept: '.pdf', ref: fileInputRef, style: { display: 'none' } }), h('input', { type: 'file', accept: '.csv,.txt', ref: planilhaInputRef, style: { display: 'none' } }), h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"), h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir"))
                 ),
-                terminandoCartao.length > 0 && h('div', { className: 'warning-box' }, h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoCartao.length} lançamento(s) terminando`), h('ul', null, terminandoCartao.map(p => h('li', { key: `term-cartao-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`)))),
+                
+                // NOVO: Adicionado total somado para lançamentos de cartões terminando (Atualizado para destacar o fundo)
+                terminandoCartao.length > 0 && h('div', { className: 'warning-box' }, 
+                  h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoCartao.length} lançamento(s) terminando`), 
+                  h('ul', null, terminandoCartao.map(p => h('li', { key: `term-cartao-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`))), 
+                  h('div', { style: { marginTop: '12px', padding: '8px 12px', background: '#FDE68A', borderRadius: '5px', fontWeight: 'bold', color: '#92400E', fontSize: '14px', display: 'flex', justifyContent: 'space-between', border: '1px solid #D97706' } }, h('span', null, "Total destes lançamentos:"), h('span', null, showMoney(totalTerminandoCartao)))
+                ),
 
                 h('table', null,
                   h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', checked: installmentsForMonth.length > 0 && selectedCartaoIds.length === installmentsForMonth.length, onChange: toggleSelectAllCartao, disabled: fechadaAtual })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', null, "Categoria"), h('th', null, "Subcategoria"), h('th', { className: 'center' }, "Parcela"), h('th', { className: 'right' }, "Valor Parcela"), h('th', { className: 'right' }, "Valor Total"), h('th', { className: 'center' }, "Ações"))),
@@ -818,7 +828,13 @@
                     if (contasPagarForMonth.length === 0) return alert("Sem dados."); let csv = "\uFEFFData;Descrição;Categoria;Subcategoria;Parcela;Status;Valor Parcela;Valor Total\n"; contasPagarForMonth.forEach(p => { const cat = getCategoria(p.categoriaId); const sub = getSubcategoria(p.categoriaId, p.subcategoriaId); csv += `${formatDateBR(p.dataCompra)};"${p.descricao}";"${cat?.nome || ''}";"${sub?.nome || ''}";"${p.index}/${p.parcelas}";"${p.status || 'Em aberto'}";${p.valorParcela.toFixed(2).replace('.', ',')};${p.total.toFixed(2).replace('.', ',')}\n`; }); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `contas_pagar_${month}.csv`; a.click();
                   } }, h(FileSpreadsheet, { size: 14 }), " Excel"), h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir"))
                 ),
-                terminandoPagar.length > 0 && h('div', { className: 'warning-box' }, h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoPagar.length} conta(s) terminando`), h('ul', null, terminandoPagar.map(p => h('li', { key: `term-pagar-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`)))),
+                
+                // NOVO: Adicionado total somado para contas a pagar terminando (Atualizado para destacar o fundo)
+                terminandoPagar.length > 0 && h('div', { className: 'warning-box' }, 
+                  h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoPagar.length} conta(s) terminando`), 
+                  h('ul', null, terminandoPagar.map(p => h('li', { key: `term-pagar-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`))), 
+                  h('div', { style: { marginTop: '12px', padding: '8px 12px', background: '#FDE68A', borderRadius: '5px', fontWeight: 'bold', color: '#92400E', fontSize: '14px', display: 'flex', justifyContent: 'space-between', border: '1px solid #D97706' } }, h('span', null, "Total destas contas:"), h('span', null, showMoney(totalTerminandoPagar)))
+                ),
 
                 h('table', null,
                   h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', checked: contasPagarForMonth.length > 0 && batchPagarIds.length === contasPagarForMonth.length, onChange: toggleSelectAllPagar })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', null, "Categoria"), h('th', null, "Subcategoria"), h('th', { className: 'center' }, "Parcela"), h('th', { className: 'right' }, "Valor Parcela"), h('th', { className: 'right' }, "Valor Total"), h('th', { className: 'center' }, "Ações"))),
@@ -852,7 +868,13 @@
                     if (contasReceberForMonth.length === 0) return alert("Sem dados."); let csv = "\uFEFFData;Descrição;Categoria;Subcategoria;Parcela;Status;Valor Parcela;Valor Total\n"; contasReceberForMonth.forEach(p => { const cat = getCategoria(p.categoriaId); const sub = getSubcategoria(p.categoriaId, p.subcategoriaId); csv += `${formatDateBR(p.dataCompra)};"${p.descricao}";"${cat?.nome || ''}";"${sub?.nome || ''}";"${p.index}/${p.parcelas}";"${p.status || 'Em aberto'}";${p.valorParcela.toFixed(2).replace('.', ',')};${p.total.toFixed(2).replace('.', ',')}\n`; }); const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `contas_receber_${month}.csv`; a.click();
                   } }, h(FileSpreadsheet, { size: 14 }), " Excel"), h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir"))
                 ),
-                terminandoReceber.length > 0 && h('div', { className: 'warning-box' }, h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoReceber.length} conta(s) terminando`), h('ul', null, terminandoReceber.map(p => h('li', { key: `term-receber-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`)))),
+                
+                // NOVO: Adicionado total somado para contas a receber terminando (Atualizado para destacar o fundo)
+                terminandoReceber.length > 0 && h('div', { className: 'warning-box' }, 
+                  h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoReceber.length} conta(s) terminando`), 
+                  h('ul', null, terminandoReceber.map(p => h('li', { key: `term-receber-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`))), 
+                  h('div', { style: { marginTop: '12px', padding: '8px 12px', background: '#FDE68A', borderRadius: '5px', fontWeight: 'bold', color: '#92400E', fontSize: '14px', display: 'flex', justifyContent: 'space-between', border: '1px solid #D97706' } }, h('span', null, "Total destas contas:"), h('span', null, showMoney(totalTerminandoReceber)))
+                ),
 
                 h('table', null,
                   h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', checked: contasReceberForMonth.length > 0 && batchReceberIds.length === contasReceberForMonth.length, onChange: toggleSelectAllReceber })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', null, "Categoria"), h('th', null, "Subcategoria"), h('th', { className: 'center' }, "Parcela"), h('th', { className: 'right' }, "Valor Parcela"), h('th', { className: 'right' }, "Valor Total"), h('th', { className: 'center' }, "Ações"))),
@@ -890,7 +912,13 @@
                 )
               ),
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 10, background: '#FAF8F2', padding: '8px 12px', borderRadius: 5, border: '1px solid var(--line)' } }, h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, "Exibição dos lançamentos:"), h('select', { value: faturaOrdem, onChange: e => setFaturaOrdem(e.target.value), style: { width: '220px', padding: '6px' } }, h('option', { value: "atual" }, "Mais atual primeiro"), h('option', { value: "compra" }, "Ordem cronológica"))),
-              terminandoCartao.length > 0 && h('div', { className: 'warning-box' }, h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoCartao.length} lançamento(s) terminando`), h('ul', null, terminandoCartao.map(p => h('li', { key: `term-fatura-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`)))),
+              
+              // NOVO: Adicionado total somado para faturas terminando (Atualizado para destacar o fundo)
+              terminandoCartao.length > 0 && h('div', { className: 'warning-box' }, 
+                h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoCartao.length} lançamento(s) terminando`), 
+                h('ul', null, terminandoCartao.map(p => h('li', { key: `term-fatura-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`))), 
+                h('div', { style: { marginTop: '12px', padding: '8px 12px', background: '#FDE68A', borderRadius: '5px', fontWeight: 'bold', color: '#92400E', fontSize: '14px', display: 'flex', justifyContent: 'space-between', border: '1px solid #D97706' } }, h('span', null, "Total destes lançamentos:"), h('span', null, showMoney(totalTerminandoCartao)))
+              ),
 
               installmentsForMonth.length === 0 ? h('div', { style: { color: 'var(--ink-soft)', fontSize: 13, padding: '16px 0' } }, "Nenhum lançamento para esta fatura.") : h('table', null,
                 h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', checked: installmentsForMonth.length > 0 && selectedCartaoIds.length === installmentsForMonth.length, onChange: toggleSelectAllCartao, disabled: fechadaAtual })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', null, "Categoria"), h('th', null, "Subcategoria"), h('th', { className: 'center' }, "Parcela"), h('th', { className: 'right' }, "Valor Parcela"), h('th', { className: 'right' }, "Valor Total"), h('th', { className: 'center' }, "Ações"))),
@@ -911,7 +939,6 @@
             h('div', { className: 'sub-nav' }, h('button', { className: relatorioTab === "pagar" ? "active" : "", onClick: () => setRelatorioTab("pagar") }, "🔴 Contas a Pagar"), h('button', { className: relatorioTab === "receber" ? "active" : "", onClick: () => setRelatorioTab("receber") }, "🟢 Contas a Receber")),
             h('div', { className: 'nav-month', style: { marginBottom: 16 } }, h('button', { onClick: () => setMonth((m) => addMonths(m, -1)) }, h(ChevronLeft)), h('div', { className: 'month-label' }, formatMonthLabel(month)), h('button', { onClick: () => setMonth((m) => addMonths(m, 1)) }, h(ChevronRight))),
 
-            // NOVO: Removida a classe `.field` (que forçava 100% de largura) e aplicada flexão correta por colunas lado a lado
             h('div', { style: { background: '#FAF8F2', border: '1px solid var(--line)', borderRadius: 6, padding: '12px 16px', marginBottom: 16, display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-end' } },
               h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } }, h('label', { style: { fontSize: '12px', color: 'var(--ink-soft)' } }, "Lançamento De"), h('input', { type: 'date', value: relFiltroDataIniInput, onChange: e => setRelFiltroDataIniInput(e.target.value), style: { width: '135px', padding: '8px', border: '1px solid var(--line)', borderRadius: '5px' } })),
               h('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } }, h('label', { style: { fontSize: '12px', color: 'var(--ink-soft)' } }, "Lançamento Até"), h('input', { type: 'date', value: relFiltroDataFimInput, onChange: e => setRelFiltroDataFimInput(e.target.value), style: { width: '135px', padding: '8px', border: '1px solid var(--line)', borderRadius: '5px' } })),
@@ -991,7 +1018,9 @@
             h('form', { className: 'modal-form', onSubmit: handleSaveLancamento },
               h('div', { className: 'field full' }, h('label', null, "Descrição *"), h('input', { type: 'text', value: descricao, onChange: e => setDescricao(e.target.value), required: true })),
               h('div', { className: 'field' }, h('label', null, "Data *"), h('input', { type: 'date', value: dataLancamento, onChange: e => setDataLancamento(e.target.value), required: true })), h('div', { className: 'field' }, h('label', null, "Competência Mês *"), h('input', { type: 'month', value: faturaMes, onChange: e => setFaturaMes(e.target.value), required: true })),
-              lancamentoTab === "cartao" && h('div', { className: 'field full' }, h('label', null, "Cartão"), h('select', { value: cartaoId, onChange: e => setCartaoId(e.target.value) }, h('option', { value: "" }, "Sem cartão"), cartoes.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
+              
+              lancamentoTab === "cartao" && h('div', { className: 'field full' }, h('label', null, "Cartão *"), h('select', { value: cartaoId, onChange: e => setCartaoId(e.target.value), required: true }, h('option', { value: "" }, "Selecione o cartão..."), cartoes.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
+              
               h('div', { className: 'field' }, h('label', null, "Categoria *"), h('select', { value: categoriaId, onChange: e => { setCategoriaId(e.target.value); setSubcategoriaId(''); }, required: true }, h('option', { value: "" }, "Selecione..."), categoriasDisponiveisModal.map(c => h('option', { key: c.id, value: c.id }, c.nome)))), h('div', { className: 'field' }, h('label', null, "Subcategoria *"), h('select', { value: subcategoriaId, onChange: e => setSubcategoriaId(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), subcategoriasDisponiveis.map(s => h('option', { key: s.id, value: s.id }, s.nome)))),
               h('div', { className: 'field' }, h('label', null, "Valor Total *"), h('input', { type: 'text', value: valorTotal, onChange: e => handleValorTotalChange(e.target.value), required: true })), h('div', { className: 'field' }, h('label', null, "Valor Parcela"), h('input', { type: 'text', value: valorParcelaInput, onChange: e => handleValorParcelaChange(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Parcela Atual"), h('input', { type: 'number', min: '1', value: parcelaAtual, onChange: e => setParcelaAtual(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Total Parcelas"), h('input', { type: 'number', min: '1', max: '60', value: parcelas, onChange: e => handleParcelasChange(e.target.value) })),
               formError && h('div', { style: { color: 'var(--red)', fontSize: 12, gridColumn: 'span 2' } }, formError),
