@@ -470,7 +470,7 @@
         if (isDiaFechado(dataLancamento)) return setFormError("Este dia está fechado."); if (isMesFechado(faturaMes)) return setFormError("Mês de competência fechado.");
 
         const total = parseValorInput(valorTotal); const n = parseInt(parcelas, 10); const atual = parseInt(parcelaAtual, 10);
-        // NOVO: Validação obrigatória para Cartão
+        
         if (!descricao.trim() || !categoriaId || !subcategoriaId || !Number.isFinite(total) || total <= 0 || (lancamentoTab === 'cartao' && !cartaoId)) return setFormError("Preencha todos os campos obrigatórios corretamente.");
 
         const competenciaInicial = faturaMes || month || currentMonth();
@@ -616,15 +616,26 @@
       return h('div', { className: 'fatura-app-layout' },
         h('style', null, `
           .fatura-app-layout { --paper: #ECE8DD; --card: #FAF8F2; --ink: #262117; --ink-soft: #6B6355; --line: #D8D0BC; --green: #2F5233; --red: #8C3B2E; --red-soft: #F1E4DF; --amber: #D97706; --amber-soft: #FEF3C7; font-family: sans-serif; color: var(--ink); display: flex; min-height: 100vh; background-color: var(--paper); }
-          .sidebar { width: 260px; background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 24px 16px; flex-shrink: 0; justify-content: space-between; }
-          .sidebar-brand { font-weight: bold; font-size: 16px; color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 30px; padding-left: 8px; width: 100%; box-sizing: border-box; }
-          .sidebar-nav { display: flex; flex-direction: column; gap: 6px; flex: 1; }
-          .sidebar-nav button { background: none; border: none; text-align: left; padding: 12px 14px; font-size: 14px; font-weight: 500; color: var(--ink-soft); cursor: pointer; border-radius: 6px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; }
+          
+          /* Modificações da Sidebar com Transição e Ocultação */
+          .sidebar { width: 260px; background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 24px 16px; flex-shrink: 0; justify-content: space-between; transition: width 0.3s ease, padding 0.3s ease, box-shadow 0.3s ease; overflow-x: hidden; white-space: nowrap; z-index: 100; }
+          .sidebar-brand { font-weight: bold; font-size: 16px; color: var(--ink); display: flex; align-items: center; gap: 10px; margin-bottom: 30px; padding-left: 8px; width: 100%; box-sizing: border-box; overflow: hidden; }
+          .sidebar-nav { display: flex; flex-direction: column; gap: 6px; flex: 1; overflow: hidden; }
+          .sidebar-nav button { background: none; border: none; text-align: left; padding: 12px 14px; font-size: 14px; font-weight: 500; color: var(--ink-soft); cursor: pointer; border-radius: 6px; display: flex; align-items: center; gap: 10px; transition: all 0.2s; overflow: hidden; }
           .sidebar-nav button:hover { background: var(--paper); color: var(--ink); }
           .sidebar-nav button.active { background: var(--green); color: #fff; font-weight: 600; }
-          .sidebar-footer { border-top: 1px solid var(--line); padding-top: 16px; }
+          .sidebar-footer { border-top: 1px solid var(--line); padding-top: 16px; overflow: hidden; }
 
-          .main-content { flex: 1; padding: 24px; overflow-y: auto; max-width: 1200px; display: flex; flex-direction: column; }
+          .main-content { flex: 1; padding: 24px; overflow-y: auto; max-width: 1200px; display: flex; flex-direction: column; transition: margin-left 0.3s ease; }
+
+          /* Responsividade: Celulares e Telas Menores */
+          @media (max-width: 850px) {
+            .sidebar { position: fixed; left: 0; top: 0; height: 100vh; width: 65px; padding: 24px 12px; }
+            .sidebar:hover, .sidebar:active, .sidebar:focus-within { width: 260px; padding: 24px 16px; box-shadow: 4px 0 24px rgba(0,0,0,0.15); }
+            .main-content { margin-left: 65px; width: calc(100% - 65px); padding: 16px; }
+            .sidebar-brand { padding-left: 4px; }
+            .sidebar-nav button { padding: 12px; }
+          }
 
           .fatura-app-layout * { box-sizing: border-box; }
           .num { font-family: monospace; }
@@ -696,7 +707,7 @@
         h('div', { className: 'sidebar' },
           h('div', null,
             h('div', { className: 'sidebar-brand' }, 
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px' } }, h(CreditCard, { size: 22 }), " Samuel Gomes")
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', minWidth: 'max-content' } }, h(CreditCard, { size: 22 }), " Samuel Gomes")
             ),
             h('div', { className: 'sidebar-nav' },
               h('button', { className: screen === "cadastros" ? "active" : "", onClick: () => setScreen("cadastros") }, h(FolderTree, { size: 18 }), " Cadastros"),
@@ -706,7 +717,12 @@
               h('button', { className: screen === "conciliacao" ? "active" : "", onClick: () => setScreen("conciliacao") }, h(RefreshCw, { size: 18 }), " Conciliação Bancária")
             )
           ),
-          h('div', { className: 'sidebar-footer' }, h('button', { type: 'button', className: 'action-btn', onClick: handleLogout, style: { width: '100%', justifyContent: 'center', color: 'var(--red)', borderColor: 'var(--red)', background: '#fff' } }, "Sair 🚪"))
+          h('div', { className: 'sidebar-footer' }, 
+            h('button', { type: 'button', className: 'action-btn', onClick: handleLogout, style: { width: '100%', justifyContent: 'flex-start', paddingLeft: '12px', color: 'var(--red)', borderColor: 'var(--red)', background: '#fff', display: 'flex', alignItems: 'center', gap: '10px' } }, 
+              h('span', {style: {fontSize: 16}}, "🚪"), 
+              h('span', null, "Sair")
+            )
+          )
         ),
 
         h('div', { className: 'main-content' },
@@ -789,7 +805,6 @@
                   h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6, flexWrap: 'wrap' } }, h('input', { type: 'file', accept: '.pdf', ref: fileInputRef, style: { display: 'none' } }), h('input', { type: 'file', accept: '.csv,.txt', ref: planilhaInputRef, style: { display: 'none' } }), h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"), h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir"))
                 ),
                 
-                // NOVO: Adicionado total somado para lançamentos de cartões terminando (Atualizado para destacar o fundo)
                 terminandoCartao.length > 0 && h('div', { className: 'warning-box' }, 
                   h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoCartao.length} lançamento(s) terminando`), 
                   h('ul', null, terminandoCartao.map(p => h('li', { key: `term-cartao-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`))), 
@@ -829,7 +844,6 @@
                   } }, h(FileSpreadsheet, { size: 14 }), " Excel"), h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir"))
                 ),
                 
-                // NOVO: Adicionado total somado para contas a pagar terminando (Atualizado para destacar o fundo)
                 terminandoPagar.length > 0 && h('div', { className: 'warning-box' }, 
                   h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoPagar.length} conta(s) terminando`), 
                   h('ul', null, terminandoPagar.map(p => h('li', { key: `term-pagar-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`))), 
@@ -869,7 +883,6 @@
                   } }, h(FileSpreadsheet, { size: 14 }), " Excel"), h('button', { type: 'button', className: 'action-btn', style: { fontSize: 12, padding: '4px 8px' }, onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir"))
                 ),
                 
-                // NOVO: Adicionado total somado para contas a receber terminando (Atualizado para destacar o fundo)
                 terminandoReceber.length > 0 && h('div', { className: 'warning-box' }, 
                   h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoReceber.length} conta(s) terminando`), 
                   h('ul', null, terminandoReceber.map(p => h('li', { key: `term-receber-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`))), 
@@ -913,7 +926,6 @@
               ),
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 10, background: '#FAF8F2', padding: '8px 12px', borderRadius: 5, border: '1px solid var(--line)' } }, h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, "Exibição dos lançamentos:"), h('select', { value: faturaOrdem, onChange: e => setFaturaOrdem(e.target.value), style: { width: '220px', padding: '6px' } }, h('option', { value: "atual" }, "Mais atual primeiro"), h('option', { value: "compra" }, "Ordem cronológica"))),
               
-              // NOVO: Adicionado total somado para faturas terminando (Atualizado para destacar o fundo)
               terminandoCartao.length > 0 && h('div', { className: 'warning-box' }, 
                 h('div', { className: 'warning-box-title' }, h(Bell, { size: 16 }), `Atenção: ${terminandoCartao.length} lançamento(s) terminando`), 
                 h('ul', null, terminandoCartao.map(p => h('li', { key: `term-fatura-${p.id}` }, `${p.descricao} - Parcela ${p.index}/${p.parcelas} (${showMoney(p.valorParcela)})`))), 
