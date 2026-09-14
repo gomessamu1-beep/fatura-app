@@ -1318,10 +1318,6 @@
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation() },
             h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 12 } }, h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, editingId ? "Editar Lançamento" : (lancamentoTab === "receber" ? "Nova Conta a Receber" : lancamentoTab === "pagar" ? "Nova Conta a Pagar" : "Novo Lançamento")), h('button', { type: 'button', className: 'icon', onClick: () => setModalOpen(false) }, h(XIcon))),
             h('form', { className: 'modal-form', onSubmit: handleSaveLancamento },
-              h('div', { className: 'field full', style: { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 8, background: 'var(--paper)', padding: 10, borderRadius: 6, border: '1px solid var(--line)' } }, 
-                h('input', { type: 'checkbox', checked: isRecorrente, onChange: e => setIsRecorrente(e.target.checked), style: { width: 18, height: 18, cursor: 'pointer' } }), 
-                h('label', { style: { fontSize: 14, fontWeight: 'bold', color: 'var(--ink)', cursor: 'pointer' }, onClick: () => setIsRecorrente(!isRecorrente) }, "Lançamento Recorrente (Repetir todo mês)")
-              ),
               
               h('div', { className: 'field full' }, h('label', null, "Descrição *"), h('input', { type: 'text', value: descricao, onChange: e => setDescricao(e.target.value), required: true })),
               h('div', { className: 'field' }, h('label', null, "Data *"), h('input', { type: 'date', value: dataLancamento, onChange: e => setDataLancamento(e.target.value), required: true })), 
@@ -1336,6 +1332,11 @@
               !isRecorrente && h('div', { className: 'field' }, h('label', null, "Parcela Atual"), h('input', { type: 'number', min: '1', value: parcelaAtual, onChange: e => setParcelaAtual(e.target.value) })), 
               !isRecorrente && h('div', { className: 'field' }, h('label', null, "Total Parcelas"), h('input', { type: 'number', min: '1', max: '60', value: parcelas, onChange: e => handleParcelasChange(e.target.value) })),
               
+              h('div', { className: 'field full', style: { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, marginBottom: 8, background: 'var(--paper)', padding: 10, borderRadius: 6, border: '1px solid var(--line)' } }, 
+                h('input', { type: 'checkbox', checked: isRecorrente, onChange: e => setIsRecorrente(e.target.checked), style: { width: 18, height: 18, cursor: 'pointer' } }), 
+                h('label', { style: { fontSize: 14, fontWeight: 'bold', color: 'var(--ink)', cursor: 'pointer' }, onClick: () => setIsRecorrente(!isRecorrente) }, "Lançamento Recorrente (Repetir todo mês)")
+              ),
+
               formError && h('div', { style: { color: 'var(--red)', fontSize: 12, gridColumn: 'span 2' } }, formError),
               h('div', { className: 'submit-row' }, h('button', { type: 'button', className: 'action-btn', onClick: () => setModalOpen(false) }, "Cancelar"), h('button', { type: 'submit', className: 'primary' }, h(Plus), " Salvar"))
             )
