@@ -161,8 +161,10 @@
       const [lrData, setLrData] = useState(currentDate());
       const [lrValor, setLrValor] = useState('');
       const [lrContaOrigem, setLrContaOrigem] = useState('');
+      const [lrContaDestino, setLrContaDestino] = useState('');
       const [lrCategoriaId, setLrCategoriaId] = useState('');
       const [lrSubcategoriaId, setLrSubcategoriaId] = useState('');
+      const [lrIsTransferencia, setLrIsTransferencia] = useState(false);
       const [lrError, setLrError] = useState('');
 
       useEffect(() => {
@@ -180,7 +182,7 @@
       const [contaModalOpen, setContaModalOpen] = useState(false);
       const [deleteModal, setDeleteModal] = useState({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "", option: "all" });
       
-      const [editCategoriaModal, setEditCategoriaModal] = useState({ open: false, id: null, nome: "", cor: CARD_COLORS[0] });
+      const [editCategoriaModal, setEditCategoriaModal] = useState({ open: false, id: null, nome: "", cor: CARD_COLORS[0], isTransferencia: false });
       const [editSubcategoriaModal, setEditSubcategoriaModal] = useState({ open: false, catId: null, subId: null, nome: "" });
 
       const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
@@ -231,6 +233,7 @@
 
       const [novaCategoriaNome, setNovaCategoriaNome] = useState("");
       const [novaCategoriaCor, setNovaCategoriaCor] = useState(CARD_COLORS[0]);
+      const [novaCategoriaIsTransferencia, setNovaCategoriaIsTransferencia] = useState(false);
       const [subInputs, setSubInputs] = useState({});
 
       const showMoney = (val) => valoresOcultos ? "*" : formatBRL(val);
@@ -260,7 +263,7 @@
         setDataLoading(true);
         const { data } = await supabaseClient.from('app_data').select('*').eq('user_id', userId).single();
         if (data) {
-          const loadedCats = (data.categorias || []).map(c => ({ tipo: c.tipo || 'despesa', ...c }));
+          const loadedCats = (data.categorias || []).map(c => ({ tipo: c.tipo || 'despesa', isTransferencia: !!c.isTransferencia, ...c }));
           setPurchases(data.purchases || []); setContasPagar(data.contas_pagar || []); setContasReceber(data.contas_receber || []);
           setCartoes(data.cartoes || []); setContasBancarias(data.contas_bancarias || []); setCategorias(loadedCats);
           setDeparaList(data.depara || []); setFaturasFechadas(data.faturas_fechadas || {}); setFaturasBaixadas(data.faturas_baixadas || {});
@@ -537,10 +540,27 @@
 
       function handleSaveCartao(e) { e.preventDefault(); setCartaoError(""); const nome = novoCartaoNome.trim(); if (!nome) return setCartaoError("Dê um nome ao cartão."); const fech = novoCartaoFechamento || "01"; const venc = novoCartaoVencimento || "10"; if (editingCartaoId) updateCartoes(prev => prev.map(c => c.id === editingCartaoId ? { ...c, nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor, fechamento: fech, vencimento: venc } : c)); else updateCartoes(prev => [...prev, { id: uid(), nome, bancoCode: novoCartaoBanco, cor: novoCartaoCor, fechamento: fech, vencimento: venc }]); setCartaoModalOpen(false); }
       function handleSaveConta(e) { e.preventDefault(); setContaError(""); const nome = novaContaNome.trim(); if (!nome) return setContaError("Dê um nome à conta."); if (editingContaId) updateContasBancarias(prev => prev.map(c => c.id === editingContaId ? { ...c, nome, bancoCode: novaContaBanco, tipo: novaContaTipo, agencia: novaContaAgencia.trim(), numero: novaContaNumero.trim() } : c)); else updateContasBancarias(prev => [...prev, { id: uid(), nome, bancoCode: novaContaBanco, tipo: novaContaTipo, agencia: novaContaAgencia.trim(), numero: novaContaNumero.trim() }]); setContaModalOpen(false); }
-      function handleSaveEditCategoria(e) { e.preventDefault(); const nome = editCategoriaModal.nome.trim(); if (!nome) return; updateCategorias(prev => prev.map(c => c.id === editCategoriaModal.id ? { ...c, nome, cor: editCategoriaModal.cor } : c)); setEditCategoriaModal({ open: false, id: null, nome: "", cor: CARD_COLORS[0] }); }
+      
+      function handleSaveEditCategoria(e) { 
+        e.preventDefault(); 
+        const nome = editCategoriaModal.nome.trim(); 
+        if (!nome) return; 
+        updateCategorias(prev => prev.map(c => c.id === editCategoriaModal.id ? { ...c, nome, cor: editCategoriaModal.cor, isTransferencia: editCategoriaModal.isTransferencia } : c)); 
+        setEditCategoriaModal({ open: false, id: null, nome: "", cor: CARD_COLORS[0], isTransferencia: false }); 
+      }
+      
       function handleSaveEditSubcategoria(e) { e.preventDefault(); const nome = editSubcategoriaModal.nome.trim(); if (!nome) return; updateCategorias(prev => prev.map(c => { if (c.id !== editSubcategoriaModal.catId) return c; return { ...c, subcategorias: c.subcategorias.map(s => s.id === editSubcategoriaModal.subId ? { ...s, nome } : s) }; })); setEditSubcategoriaModal({ open: false, catId: null, subId: null, nome: "" }); }
       function handleAddDepara(e) { e.preventDefault(); setDeparaError(""); const fatura = novoDeparaFatura.trim(); if (!fatura) return setDeparaError("Informe a descrição."); if (!novoDeparaCategoriaId || !novoDeparaSubcategoriaId) return setDeparaError("Selecione categoria/subcategoria."); updateDepara(prev => [...prev, { id: uid(), fatura, importacao: novoDeparaImportacao.trim(), categoriaId: novoDeparaCategoriaId, subcategoriaId: novoDeparaSubcategoriaId }]); setNovoDeparaFatura(""); setNovoDeparaImportacao(""); setNovoDeparaCategoriaId(""); setNovoDeparaSubcategoriaId(""); }
-      function handleAddCategoria(e) { e.preventDefault(); const nome = novaCategoriaNome.trim(); if (!nome) return; updateCategorias(prev => [...prev, { id: uid(), tipo: categoriaTipoTab, nome, cor: novaCategoriaCor, subcategorias: [] }]); setNovaCategoriaNome(""); }
+      
+      function handleAddCategoria(e) { 
+        e.preventDefault(); 
+        const nome = novaCategoriaNome.trim(); 
+        if (!nome) return; 
+        updateCategorias(prev => [...prev, { id: uid(), tipo: categoriaTipoTab, nome, cor: novaCategoriaCor, isTransferencia: novaCategoriaIsTransferencia, subcategorias: [] }]); 
+        setNovaCategoriaNome(""); 
+        setNovaCategoriaIsTransferencia(false);
+      }
+      
       function handleAddSubcategoria(catId) { const nome = (subInputs[catId] || "").trim(); if (!nome) return; updateCategorias(prev => prev.map(c => c.id !== catId ? c : { ...c, subcategorias: [...c.subcategorias, { id: uid(), nome }] })); setSubInputs(prev => ({ ...prev, [catId]: "" })); }
 
       function handleProcessarTxtCategorias(e) {
@@ -549,8 +569,8 @@
         linhas.forEach(linhaOriginal => {
           const temTabulacao = linhaOriginal.startsWith("\t") || linhaOriginal.startsWith("    "); const limpa = linhaOriginal.trim(); if (!limpa) return;
           const ehSub = temTabulacao || limpa.startsWith("-") || limpa.startsWith("•"); const nomeItem = limpa.replace(/^[-•]\s*/, "").trim();
-          if (!ehSub) { let catExistente = novasCategorias.find(c => c.tipo === categoriaTipoTab && c.nome.toLowerCase() === nomeItem.toLowerCase()); if (!catExistente) { catExistente = { id: uid(), tipo: categoriaTipoTab, nome: nomeItem, cor: CARD_COLORS[novasCategorias.length % CARD_COLORS.length], subcategorias: [] }; novasCategorias.push(catExistente); qtdCatAdicionadas++; } catAtual = catExistente; } 
-          else { if (catAtual) { let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } else { const catsDoTipo = novasCategorias.filter(c => c.tipo === categoriaTipoTab); if (catsDoTipo.length > 0) { catAtual = catsDoTipo[catsDoTipo.length - 1]; let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } } }
+          if (!ehSub) { let catExistente = novasCategorias.find(c => c.tipo === categoriaTipoTab && c.nome.toLowerCase() === nomeItem.toLowerCase()); if (!catExistente) { catExistente = { id: uid(), tipo: categoriaTipoTab, nome: nomeItem, cor: CARD_COLORS[novasCategorias.length % CARD_COLORS.length], isTransferencia: false, subcategorias: [] }; novasCategorias.push(catExistente); qtdCatAdicionadas++; } catAtual = catExistente; } 
+          else { if (catAtual) { let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: item => item }); qtdSubAdicionadas++; } } else { const catsDoTipo = novasCategorias.filter(c => c.tipo === categoriaTipoTab); if (catsDoTipo.length > 0) { catAtual = catsDoTipo[catsDoTipo.length - 1]; let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } } }
         });
         updateCategorias(novasCategorias); setTxtCategoriasContent(""); alert(`Concluído!\n- ${qtdCatAdicionadas} categorias\n- ${qtdSubAdicionadas} subcategorias`);
       }
@@ -665,8 +685,17 @@
       function handleSaveLancamentoRapido(e) {
         e.preventDefault(); setLrError("");
         const total = parseValorInput(lrValor);
+        
         if (!lrDescricao.trim() || !Number.isFinite(total) || total <= 0 || !lrData || !lrContaOrigem || !lrCategoriaId || !lrSubcategoriaId) {
           return setLrError("Preencha todos os campos obrigatórios corretamente.");
+        }
+
+        if (lrIsTransferencia && !lrContaDestino) {
+          return setLrError("Selecione a conta de destino para a transferência.");
+        }
+
+        if (lrIsTransferencia && lrContaOrigem === lrContaDestino) {
+          return setLrError("A conta de origem e destino não podem ser iguais.");
         }
 
         const faturaMes = lrData.substring(0, 7);
@@ -675,17 +704,52 @@
           return setLrError("Dia ou mês bloqueado/fechado. Abra-o para fazer o lançamento.");
         }
 
-        const entry = {
-          id: uid(), descricao: lrDescricao.trim(), total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
-          inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
-          subcategoriaId: lrSubcategoriaId, status: "Baixado", criadoEm: Date.now(),
-          transferenciaId: null, isLancamentoDireto: true, bancoBaixaId: lrContaOrigem, dataBaixa: lrData
-        };
+        const transId = lrIsTransferencia ? uid() : null;
 
-        if (lrTipo === 'despesa') updateContasPagar(prev => [...prev, entry]);
-        else updateContasReceber(prev => [...prev, entry]);
+        if (lrIsTransferencia) {
+          // Lançamento de Saída (Débito)
+          const debitoEntry = {
+            id: uid(), descricao: `Transferência enviada: ${lrDescricao.trim()}`, total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
+            inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
+            subcategoriaId: lrSubcategoriaId, status: "Baixado", criadoEm: Date.now(),
+            transferenciaId: transId, isLancamentoDireto: true, bancoBaixaId: lrContaOrigem, dataBaixa: lrData
+          };
+          
+          // Lançamento de Entrada (Crédito)
+          const creditoEntry = {
+            id: uid(), descricao: `Transferência recebida: ${lrDescricao.trim()}`, total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
+            inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
+            subcategoriaId: lrSubcategoriaId, status: "Baixado", criadoEm: Date.now(),
+            transferenciaId: transId, isLancamentoDireto: true, bancoBaixaId: lrContaDestino, dataBaixa: lrData
+          };
+
+          updateContasPagar(prev => [...prev, debitoEntry]);
+          updateContasReceber(prev => [...prev, creditoEntry]);
+        } else {
+          const entry = {
+            id: uid(), descricao: lrDescricao.trim(), total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
+            inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
+            subcategoriaId: lrSubcategoriaId, status: "Baixado", criadoEm: Date.now(),
+            transferenciaId: null, isLancamentoDireto: true, bancoBaixaId: lrContaOrigem, dataBaixa: lrData
+          };
+
+          if (lrTipo === 'despesa') updateContasPagar(prev => [...prev, entry]);
+          else updateContasReceber(prev => [...prev, entry]);
+        }
         
         setLrModalOpen(false);
+      }
+
+      function handleLrCategoriaChange(catId) {
+        setLrCategoriaId(catId);
+        setLrSubcategoriaId('');
+        const cat = getCategoria(catId);
+        if (cat && cat.isTransferencia) {
+          setLrIsTransferencia(true);
+        } else {
+          setLrIsTransferencia(false);
+          setLrContaDestino('');
+        }
       }
 
       function executarBaixaIndividual(type, id, bancoId, dataBaixaStr) {
@@ -1009,8 +1073,15 @@
             ),
             cadastroTab === "categorias" && h(React.Fragment, null,
               h('div', { style: { display: 'flex', gap: 10, marginBottom: 16 } }, h('button', { type: 'button', className: `action-btn ${categoriaTipoTab === 'despesa' ? 'active' : ''}`, style: { padding: '6px 14px', fontWeight: categoriaTipoTab === 'despesa' ? 'bold' : 'normal', background: categoriaTipoTab === 'despesa' ? 'var(--green)' : '#fff', color: categoriaTipoTab === 'despesa' ? '#fff' : 'var(--ink)' }, onClick: () => setCategoriaTipoTab('despesa') }, "🔴 Categorias de Despesa"), h('button', { type: 'button', className: `action-btn ${categoriaTipoTab === 'receita' ? 'active' : ''}`, style: { padding: '6px 14px', fontWeight: categoriaTipoTab === 'receita' ? 'bold' : 'normal', background: categoriaTipoTab === 'receita' ? 'var(--green)' : '#fff', color: categoriaTipoTab === 'receita' ? '#fff' : 'var(--ink)' }, onClick: () => setCategoriaTipoTab('receita') }, "🟢 Categorias de Receita")),
-              h('form', { onSubmit: handleAddCategoria, style: { display: 'flex', gap: 10, flexWrap: 'wrap' } }, h('input', { type: 'text', placeholder: `Nova categoria de ${categoriaTipoTab === 'despesa' ? 'despesa' : 'receita'}`, value: novaCategoriaNome, onChange: (e) => setNovaCategoriaNome(e.target.value), style: { flex: 1, minWidth: 160 }, required: true }), h('button', { type: 'submit', className: 'primary' }, h(Plus), " Cadastrar")),
-              h('div', { className: 'list-vertical' }, categorias.filter(cat => (cat.tipo || 'despesa') === categoriaTipoTab).map((cat) => h('div', { className: 'list-item', key: cat.id }, h('div', { className: 'list-item-main' }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h('span', { className: 'dot', style: { background: cat.cor } }), h('span', null, cat.nome)), h('div', { style: { display: 'flex', gap: 6 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setEditCategoriaModal({ open: true, id: cat.id, nome: cat.nome, cor: cat.cor || CARD_COLORS[0] }) }, h(Pencil, { size: 14 })), h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'categoria', id: cat.id, title: 'Excluir Categoria', message: `Excluir ${cat.nome}?`, option: "all" }) }, h(Trash2, { size: 14 })))), cat.subcategorias && cat.subcategorias.map((sub) => h('div', { className: 'subcategory-item-row', key: sub.id }, h('span', null, "↳ ", sub.nome), h('div', { style: { display: 'flex', gap: 4 } }, h('button', { type: 'button', className: 'action-btn', style: { padding: 3 }, onClick: () => setEditSubcategoriaModal({ open: true, catId: cat.id, subId: sub.id, nome: sub.nome }) }, h(Pencil, { size: 12 })), h('button', { type: 'button', className: 'action-btn delete', style: { padding: 3 }, onClick: () => setDeleteModal({ open: true, type: 'subcategoria', id: cat.id, subId: sub.id, title: 'Excluir Subcategoria', message: `Excluir ${sub.nome}?`, option: "all" }) }, h(Trash2, { size: 12 }))))), h('div', { className: 'add-subcat-form' }, h('input', { type: 'text', placeholder: '+ Adicionar subcategoria', style: { padding: '4px 8px', fontSize: 12, flex: 1 }, value: subInputs[cat.id] || "", onChange: (e) => setSubInputs({ ...subInputs, [cat.id]: e.target.value }), onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubcategoria(cat.id); } } }), h('button', { type: 'button', className: 'primary', style: { padding: '4px 8px', fontSize: 12 }, onClick: () => handleAddSubcategoria(cat.id) }, "Incluir")))))
+              h('form', { onSubmit: handleAddCategoria, style: { display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' } }, 
+                h('input', { type: 'text', placeholder: `Nova categoria de ${categoriaTipoTab === 'despesa' ? 'despesa' : 'receita'}`, value: novaCategoriaNome, onChange: (e) => setNovaCategoriaNome(e.target.value), style: { flex: 1, minWidth: 160 }, required: true }), 
+                h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', background: '#fff', padding: '8px 12px', borderRadius: 5, border: '1px solid var(--line)' } }, 
+                  h('input', { type: 'checkbox', checked: novaCategoriaIsTransferencia, onChange: e => setNovaCategoriaIsTransferencia(e.target.checked), style: { width: 'auto', margin: 0 } }), 
+                  "🔄 É Transferência?"
+                ),
+                h('button', { type: 'submit', className: 'primary' }, h(Plus), " Cadastrar")
+              ),
+              h('div', { className: 'list-vertical' }, categorias.filter(cat => (cat.tipo || 'despesa') === categoriaTipoTab).map((cat) => h('div', { className: 'list-item', key: cat.id }, h('div', { className: 'list-item-main' }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h('span', { className: 'dot', style: { background: cat.cor } }), h('span', null, cat.nome), cat.isTransferencia && h('span', { className: 'badge', style: { background: '#DBEAFE', color: '#1E40AF' } }, "🔄 Transferência")), h('div', { style: { display: 'flex', gap: 6 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setEditCategoriaModal({ open: true, id: cat.id, nome: cat.nome, cor: cat.cor || CARD_COLORS[0], isTransferencia: !!cat.isTransferencia }) }, h(Pencil, { size: 14 })), h('button', { type: 'button', className: 'action-btn delete', onClick: () => setDeleteModal({ open: true, type: 'categoria', id: cat.id, title: 'Excluir Categoria', message: `Excluir ${cat.nome}?`, option: "all" }) }, h(Trash2, { size: 14 })))), cat.subcategorias && cat.subcategorias.map((sub) => h('div', { className: 'subcategory-item-row', key: sub.id }, h('span', null, "↳ ", sub.nome), h('div', { style: { display: 'flex', gap: 4 } }, h('button', { type: 'button', className: 'action-btn', style: { padding: 3 }, onClick: () => setEditSubcategoriaModal({ open: true, catId: cat.id, subId: sub.id, nome: sub.nome }) }, h(Pencil, { size: 12 })), h('button', { type: 'button', className: 'action-btn delete', style: { padding: 3 }, onClick: () => setDeleteModal({ open: true, type: 'subcategoria', id: cat.id, subId: sub.id, title: 'Excluir Subcategoria', message: `Excluir ${sub.nome}?`, option: "all" }) }, h(Trash2, { size: 12 }))))), h('div', { className: 'add-subcat-form' }, h('input', { type: 'text', placeholder: '+ Adicionar subcategoria', style: { padding: '4px 8px', fontSize: 12, flex: 1 }, value: subInputs[cat.id] || "", onChange: (e) => setSubInputs({ ...subInputs, [cat.id]: e.target.value }), onKeyDown: (e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddSubcategoria(cat.id); } } }), h('button', { type: 'button', className: 'primary', style: { padding: '4px 8px', fontSize: 12 }, onClick: () => handleAddSubcategoria(cat.id) }, "Incluir")))))
             ),
             cadastroTab === "depara" && h(React.Fragment, null,
               h('div', { style: { fontSize: 13, color: 'var(--ink-soft)', marginBottom: 12 } }, "Regras de De-Para obrigatórias para importação de PDF do Santander."),
@@ -1237,7 +1308,7 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
               h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Conciliação Bancária"),
               h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
-                h('button', { type: 'button', className: 'primary', onClick: () => { setLrTipo('despesa'); setLrDescricao(''); setLrData(currentDate()); setLrValor(''); setLrContaOrigem(concilContaId || ''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
+                h('button', { type: 'button', className: 'primary', onClick: () => { setLrTipo('despesa'); setLrDescricao(''); setLrData(currentDate()); setLrValor(''); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrIsTransferencia(false); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportConciliacaoExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir")
               )
@@ -1263,7 +1334,7 @@
 
         ),
 
-        // ================= MODAL NOVO: LANÇAMENTO DIRETO =================
+        // ================= MODAL NOVO: LANÇAMENTO DIRETO NA CONCILIAÇÃO =================
         lrModalOpen && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 480 } },
             h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 12 } }, h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Lançamento Direto na Conciliação"), h('button', { type: 'button', className: 'icon', onClick: () => setLrModalOpen(false) }, h(XIcon))),
@@ -1279,10 +1350,14 @@
               h('div', { className: 'field' }, h('label', null, "Data *"), h('input', { type: 'date', value: lrData, onChange: e => setLrData(e.target.value), required: true })),
               h('div', { className: 'field' }, h('label', null, "Valor *"), h('input', { type: 'text', value: lrValor, onChange: e => setLrValor(e.target.value), required: true, placeholder: '0,00' })),
               
-              h('div', { className: 'field full' }, h('label', null, "Conta Bancária *"), h('select', { value: lrContaOrigem, onChange: e => setLrContaOrigem(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
-              
-              h('div', { className: 'field' }, h('label', null, "Categoria *"), h('select', { value: lrCategoriaId, onChange: e => { setLrCategoriaId(e.target.value); setLrSubcategoriaId(''); }, required: true }, h('option', { value: "" }, "Selecione..."), categorias.filter(c => (c.tipo || 'despesa') === lrTipo).map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
+              h('div', { className: 'field' }, h('label', null, "Categoria *"), h('select', { value: lrCategoriaId, onChange: e => handleLrCategoriaChange(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), categorias.filter(c => (c.tipo || 'despesa') === lrTipo).map(c => h('option', { key: c.id, value: c.id }, `${c.nome} ${c.isTransferencia ? '(🔄 Transferência)' : ''}`)))),
               h('div', { className: 'field' }, h('label', null, "Subcategoria *"), h('select', { value: lrSubcategoriaId, onChange: e => setLrSubcategoriaId(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), subcategoriasLrDisponiveis.map(s => h('option', { key: s.id, value: s.id }, s.nome)))),
+              
+              h('div', { className: lrIsTransferencia ? 'field' : 'field full' }, h('label', null, lrIsTransferencia ? "Conta de Origem *" : "Conta Bancária *"), h('select', { value: lrContaOrigem, onChange: e => setLrContaOrigem(e.target.value), required: true }, h('option', { value: "" }, "Selecione..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
+              
+              lrIsTransferencia && h('div', { className: 'field' }, h('label', null, "Conta de Destino *"), h('select', { value: lrContaDestino, onChange: e => setLrContaDestino(e.target.value), required: true }, h('option', { value: "" }, "Selecione destino..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))),
+
+              lrIsTransferencia && h('div', { className: 'field full', style: { background: '#DBEAFE', color: '#1E40AF', padding: '8px 12px', borderRadius: 5, fontSize: 12, marginTop: 4 } }, "ℹ️ Categoria de Transferência identificada! O sistema vai debitar da Conta Origem e creditar na Conta Destino automaticamente."),
               
               lrError && h('div', { style: { color: 'var(--red)', fontSize: 12, gridColumn: 'span 2' } }, lrError),
               h('div', { className: 'submit-row', style: { marginTop: 8 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setLrModalOpen(false) }, "Cancelar"), h('button', { type: 'submit', className: 'primary' }, h(CheckCircle, {size: 16}), " Lançar"))
@@ -1388,7 +1463,11 @@
             h('form', { onSubmit: handleSaveEditCategoria, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
               h('div', { className: 'field' }, h('label', null, "Nome da Categoria *"), h('input', { type: 'text', value: editCategoriaModal.nome, onChange: e => setEditCategoriaModal({ ...editCategoriaModal, nome: e.target.value }), required: true })),
               h('div', { className: 'field' }, h('label', null, "Cor"), h('div', { className: 'color-swatches' }, CARD_COLORS.map(cor => h('button', { type: 'button', key: cor, className: `color-swatch ${editCategoriaModal.cor === cor ? 'selected' : ''}`, style: { background: cor }, onClick: () => setEditCategoriaModal({ ...editCategoriaModal, cor }) })))),
-              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setEditCategoriaModal({ open: false, id: null, nome: "", cor: CARD_COLORS[0] }) }, "Cancelar"), h('button', { type: 'submit', className: 'primary' }, "Salvar"))
+              h('label', { style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', background: '#fff', padding: '8px 12px', borderRadius: 5, border: '1px solid var(--line)' } }, 
+                h('input', { type: 'checkbox', checked: editCategoriaModal.isTransferencia, onChange: e => setEditCategoriaModal({ ...editCategoriaModal, isTransferencia: e.target.checked }), style: { width: 'auto', margin: 0 } }), 
+                "🔄 É Transferência?"
+              ),
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setEditCategoriaModal({ open: false, id: null, nome: "", cor: CARD_COLORS[0], isTransferencia: false }) }, "Cancelar"), h('button', { type: 'submit', className: 'primary' }, "Salvar"))
             )
           )
         ),
