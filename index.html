@@ -893,16 +893,21 @@
         reader.onload = (evt) => {
           const parsed = parseOFX(evt.target.result);
           
-          const sysBancoCode = contaSelecionada.bancoCode;
+          const sysBancoCode = (contaSelecionada.bancoCode || "").trim();
           const sysContaNum = (contaSelecionada.numero || "").replace(/\D/g, '');
           
-          const ofxBancoCode = parsed.ofxBankId;
+          const ofxBancoCode = (parsed.ofxBankId || "").trim();
           const ofxContaNum = (parsed.ofxAcctId || "").replace(/\D/g, '');
 
-          if (ofxBancoCode && sysBancoCode && ofxBancoCode !== sysBancoCode) {
-            alert(`Importação bloqueada: O código do banco no arquivo OFX (${ofxBancoCode}) não corresponde ao da conta selecionada (${sysBancoCode}).`);
-            if (ofxInputRef.current) ofxInputRef.current.value = "";
-            return;
+          // Validação robusta de Banco (considerando que o OFX pode ter 4 dígitos ex: "0033" e o cadastro "033")
+          if (ofxBancoCode && sysBancoCode) {
+            const cleanOfxBank = ofxBancoCode.replace(/^0+/, '');
+            const cleanSysBank = sysBancoCode.replace(/^0+/, '');
+            if (cleanOfxBank !== cleanSysBank) {
+              alert(`Importação bloqueada: O código do banco no arquivo OFX (${ofxBancoCode}) não corresponde ao da conta selecionada (${sysBancoCode}).`);
+              if (ofxInputRef.current) ofxInputRef.current.value = "";
+              return;
+            }
           }
 
           if (ofxContaNum && sysContaNum) {
@@ -950,6 +955,20 @@
 
       function toggleOfxSelect(id) { setOfxSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
       function toggleSysSelect(id) { setSysSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
+      function toggleSelectAllOfx() {
+        if (ofxSelectedIds.length === ofxData.length) {
+          setOfxSelectedIds([]);
+        } else {
+          setOfxSelectedIds(ofxData.map(o => o.id));
+        }
+      }
+      function toggleSelectAllSys() {
+        if (sysSelectedIds.length === movimentacoesConciliacao.length) {
+          setSysSelectedIds([]);
+        } else {
+          setSysSelectedIds(movimentacoesConciliacao.map(m => m.id));
+        }
+      }
 
 
       const calendarioDiasDoMes = useMemo(() => {
@@ -958,7 +977,7 @@
           const strD = `${ano}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`; let deb = 0; let cred = 0;
           if (concilContaId) {
             contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa === strD) deb += p.recorrente ? (p.valorParcela||p.total) : (p.valorParcela || p.total); });
-            contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += r.recorrente ? (p.valorParcela||p.total) : (r.valorParcela || r.total); });
+            contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += r.recorrente ? (p.valorParcela||p.total) : (p.valorParcela || p.total); });
             Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
               if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa === strD) {
                 const values = purchases.map(p => { 
@@ -1502,7 +1521,10 @@
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' } },
                 
                 h('div', { style: { border: '1px solid var(--line)', borderRadius: '6px', background: '#fff' } },
-                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0' } }, "Extrato OFX (Banco)"),
+                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, 
+                     h('span', null, "Extrato OFX (Banco)"),
+                     ofxData.length > 0 && h('button', { type: 'button', className: 'action-btn', style: { fontSize: 11, padding: '2px 8px' }, onClick: toggleSelectAllOfx }, ofxSelectedIds.length === ofxData.length ? "Desmarcar Todos" : "Selecionar Todos")
+                   ),
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       ofxData.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhum arquivo importado.") :
                       h('table', null, 
@@ -1518,7 +1540,10 @@
                 ),
 
                 h('div', { style: { border: '1px solid var(--line)', borderRadius: '6px', background: '#fff' } },
-                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0' } }, "Lançamentos no Sistema"),
+                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, 
+                     h('span', null, "Lançamentos no Sistema"),
+                     movimentacoesConciliacao.length > 0 && h('button', { type: 'button', className: 'action-btn', style: { fontSize: 11, padding: '2px 8px' }, onClick: toggleSelectAllSys }, sysSelectedIds.length === movimentacoesConciliacao.length ? "Desmarcar Todos" : "Selecionar Todos")
+                   ),
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       movimentacoesConciliacao.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma movimentação baixada neste período.") :
                       h('table', null, 
@@ -1526,7 +1551,10 @@
                         h('tbody', null, movimentacoesConciliacao.map(sys => h('tr', { key: sys.id, style: { opacity: sys.conciliado ? 0.5 : 1 } }, 
                           h('td', null, sys.conciliado ? h(CheckCircle, { color: 'var(--green)' }) : h('input', { type: 'checkbox', checked: sysSelectedIds.includes(sys.id), onChange: () => toggleSysSelect(sys.id) })),
                           h('td', null, formatDateBR(sys.data)),
-                          h('td', null, sys.descricao),
+                          h('td', null, h('div', { style: { display: 'flex', alignItems: 'center', gap: 6 } },
+                            sys.descricao,
+                            h('a', { href: '#', title: 'Abrir Lançamento', style: { color: 'var(--green)', fontSize: '12px', textDecoration: 'underline' }, onClick: (e) => { e.preventDefault(); setConcilEditModal({ open: true, item: sys }); } }, "🔗")
+                          )),
                           h('td', { className: 'right num', style: { color: sys.tipo === 'Débito' ? 'var(--red)' : 'var(--green)' } }, showMoney(sys.valorDebito || sys.valorCredito))
                         )))
                       )
