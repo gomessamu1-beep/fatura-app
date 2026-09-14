@@ -31,6 +31,8 @@
     function CreditCard({ size = 16 }) { return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, h('rect', { width: '20', height: '14', x: '2', y: '5', rx: '2' }), h('line', { x1: '2', x2: '22', y1: '10', y2: '10' })); }
     function ChevronLeft({ size = 16 }) { return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'm15 18-6-6 6-6' })); }
     function ChevronRight({ size = 16 }) { return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'm9 18 6-6-6-6' })); }
+    function ChevronDown({ size = 16 }) { return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'm6 9 6 6 6-6' })); }
+    function ChevronUp({ size = 16 }) { return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'm18 15-6-6-6 6' })); }
     function Plus({ size = 16 }) { return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M5 12h14' }), h('path', { d: 'M12 5v14' })); }
     function Trash2({ size = 16 }) { return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M3 6h18' }), h('path', { d: 'M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6' }), h('path', { d: 'M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2' })); }
     function Pencil({ size = 16 }) { return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: '2', strokeLinecap: 'round', strokeLinejoin: 'round' }, h('path', { d: 'M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z' }), h('path', { d: 'm15 5 4 4' })); }
@@ -140,6 +142,7 @@
       const [concilDataFim, setConcilDataFim] = useState(currentDate());
       const [concilExibido, setConcilExibido] = useState(false);
       const [concilCalMes, setConcilCalMes] = useState(currentMonth());
+      const [calendarioExpandido, setCalendarioExpandido] = useState(false);
 
       const [concilEditModal, setConcilEditModal] = useState({ open: false, item: null });
 
@@ -153,9 +156,8 @@
       const [batchPagarIds, setBatchPagarIds] = useState([]);
       const [batchReceberIds, setBatchReceberIds] = useState([]);
 
-      // ================= ESTADOS DO LANÇAMENTO RÁPIDO =================
       const [lrModalOpen, setLrModalOpen] = useState(false);
-      const [lrTipo, setLrTipo] = useState('despesa'); // 'despesa' ou 'receita'
+      const [lrTipo, setLrTipo] = useState('despesa'); 
       const [lrDescricao, setLrDescricao] = useState('');
       const [lrObservacao, setLrObservacao] = useState('');
       const [lrData, setLrData] = useState(currentDate());
@@ -715,7 +717,6 @@
         const transId = lrIsTransferencia ? uid() : null;
 
         if (lrIsTransferencia) {
-          // Lançamento de Saída (Débito)
           const debitoEntry = {
             id: uid(), descricao: `Transferência enviada: ${lrDescricao.trim()}`, observacao: lrObservacao.trim(), total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
             inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
@@ -723,7 +724,6 @@
             transferenciaId: transId, isLancamentoDireto: true, bancoBaixaId: lrContaOrigem, dataBaixa: lrData
           };
           
-          // Lançamento de Entrada (Crédito)
           const creditoEntry = {
             id: uid(), descricao: `Transferência recebida: ${lrDescricao.trim()}`, observacao: lrObservacao.trim(), total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
             inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
@@ -1339,19 +1339,31 @@
                 h('div', { className: 'top', style: { flex: 1, margin: 0, padding: 14 } }, h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Saldo Final da Conta"), h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold' } }, showMoney(saldoFinalConcil)))
               ),
 
-              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 } }, h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Movimentação Detalhada por Dia"), h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } }, h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `Mês do Calendário:`), h('input', { type: 'month', value: concilCalMes, onChange: e => setConcilCalMes(e.target.value), style: { width: 140 } }), h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF, title: 'Imprimir Calendário' }, h(Printer, { size: 14 }), " Imprimir Calendário"))),
+              h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '10px 14px', background: '#F2EFE9', borderRadius: 6, border: '1px solid var(--line)' } }, 
+                h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }, onClick: () => setCalendarioExpandido(!calendarioExpandido) }, 
+                  h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Calendário de Saldos do Mês"),
+                  h('button', { type: 'button', className: 'action-btn', style: { padding: 4, borderRadius: '50%' } }, calendarioExpandido ? h(ChevronUp, {size: 16}) : h(ChevronDown, {size: 16})),
+                  !calendarioExpandido && h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, "Clique para expandir")
+                ),
+                h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' }, onClick: e => e.stopPropagation() }, 
+                  h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `Mês:`), 
+                  h('input', { type: 'month', value: concilCalMes, onChange: e => setConcilCalMes(e.target.value), style: { width: 140 } }), 
+                  calendarioExpandido && h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF, title: 'Imprimir Calendário' }, h(Printer, { size: 14 }), " Imprimir")
+                )
+              ),
 
-              h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8, marginBottom: 20 } }, calendarioDiasDoMes.map(d => {
+              calendarioExpandido && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8, marginBottom: 24 } }, calendarioDiasDoMes.map(d => {
                 const fechado = isDiaFechado(d.data); return h('div', { key: d.data, style: { background: '#fff', border: '1px solid var(--line)', borderRadius: 5, padding: 8, fontSize: 12 } }, h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', marginBottom: 4 } }, h('span', null, formatDateBR(d.data)), h('button', { type: 'button', className: 'action-btn', style: { padding: 2, background: fechado ? 'var(--amber-soft)' : '#fff', borderColor: fechado ? 'var(--amber)' : 'var(--line)' }, onClick: (e) => toggleDiaFechado(d.data, e) }, fechado ? h(Lock, { size: 10, color: 'var(--amber)' }) : h(Unlock, { size: 10, color: 'var(--green)' }))), h('div', { style: { color: 'var(--red)', fontSize: 11 } }, `(-) ${showMoney(d.debitos)}`), h('div', { style: { color: 'var(--green)', fontSize: 11 } }, `(+) ${showMoney(d.cred)}`), h('div', { className: 'num', style: { fontWeight: 'bold', marginTop: 4, borderTop: '1px solid var(--line)', paddingTop: 2 } }, `Saldo: ${showMoney(d.saldo)}`));
               })),
 
-              resumoDiarioConcil.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma movimentação.") : resumoDiarioConcil.map(grupo => h('div', { key: grupo.data, style: { marginBottom: 16, border: '1px solid var(--line)', borderRadius: 6, background: '#fff', padding: 12 } }, h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', borderBottom: '1px solid var(--line)', paddingBottom: 6, marginBottom: 8 } }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h('span', null, `📅 ${formatDateBR(grupo.data)}`), h('button', { type: 'button', className: 'action-btn', style: { padding: '2px 6px', background: isDiaFechado(grupo.data) ? 'var(--amber-soft)' : '#fff' }, onClick: (e) => toggleDiaFechado(grupo.data, e) }, isDiaFechado(grupo.data) ? h(Lock, { size: 12, color: 'var(--amber)' }) : h(Unlock, { size: 12 }))), h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `Débitos: ${showMoney(grupo.debitos)} | Créditos: ${showMoney(grupo.creditos)}`)), h('table', { style: { marginTop: 0 } }, h('thead', null, h('tr', null, h('th', null, "Descrição / Obs"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'center' }, "Link"), h('th', { className: 'right' }, "Débito (-)"), h('th', { className: 'right' }, "Crédito (+)"), h('th', { className: 'right' }, "Saldo"))), h('tbody', null, grupo.itens.map(item => h('tr', { key: item.id }, h('td', null, h('div', { style: { fontWeight: '500' } }, item.descricao), item.observacao && h('div', { style: { fontSize: 11, color: 'var(--ink-soft)' } }, `📝 ${item.observacao}`)), h('td', { className: 'center' }, h('span', { className: `badge ${item.tipo === 'Débito' ? 'aberto' : 'baixado'}` }, item.tipo)), h('td', { className: 'center' }, h('a', { href: '#', style: { color: 'var(--green)', fontWeight: 'bold', textDecoration: 'underline', fontSize: '12px' }, onClick: (e) => { e.preventDefault(); setConcilEditModal({ open: true, item }); } }, "🔗 Abrir / Alterar")), h('td', { className: 'right num', style: { color: 'var(--red)' } }, item.valorDebito ? showMoney(item.valorDebito) : '-'), h('td', { className: 'right num', style: { color: 'var(--green)' } }, item.valorCredito ? showMoney(item.valorCredito) : '-'), h('td', { className: 'right num', style: { fontWeight: 'bold' } }, showMoney(item.saldo))))))))
+              h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12, borderBottom: '2px solid var(--line)', paddingBottom: 8 } }, "Movimentação Detalhada do Período Filtrado"),
+
+              resumoDiarioConcil.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma movimentação para o período filtrado.") : resumoDiarioConcil.map(grupo => h('div', { key: grupo.data, style: { marginBottom: 16, border: '1px solid var(--line)', borderRadius: 6, background: '#fff', padding: 12 } }, h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', borderBottom: '1px solid var(--line)', paddingBottom: 6, marginBottom: 8 } }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h('span', null, `📅 ${formatDateBR(grupo.data)}`), h('button', { type: 'button', className: 'action-btn', style: { padding: '2px 6px', background: isDiaFechado(grupo.data) ? 'var(--amber-soft)' : '#fff' }, onClick: (e) => toggleDiaFechado(grupo.data, e) }, isDiaFechado(grupo.data) ? h(Lock, { size: 12, color: 'var(--amber)' }) : h(Unlock, { size: 12 }))), h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `Débitos: ${showMoney(grupo.debitos)} | Créditos: ${showMoney(grupo.creditos)}`)), h('table', { style: { marginTop: 0 } }, h('thead', null, h('tr', null, h('th', null, "Descrição / Obs"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'center' }, "Link"), h('th', { className: 'right' }, "Débito (-)"), h('th', { className: 'right' }, "Crédito (+)"), h('th', { className: 'right' }, "Saldo"))), h('tbody', null, grupo.itens.map(item => h('tr', { key: item.id }, h('td', null, h('div', { style: { fontWeight: '500' } }, item.descricao), item.observacao && h('div', { style: { fontSize: 11, color: 'var(--ink-soft)' } }, `📝 ${item.observacao}`)), h('td', { className: 'center' }, h('span', { className: `badge ${item.tipo === 'Débito' ? 'aberto' : 'baixado'}` }, item.tipo)), h('td', { className: 'center' }, h('a', { href: '#', style: { color: 'var(--green)', fontWeight: 'bold', textDecoration: 'underline', fontSize: '12px' }, onClick: (e) => { e.preventDefault(); setConcilEditModal({ open: true, item }); } }, "🔗 Abrir / Alterar")), h('td', { className: 'right num', style: { color: 'var(--red)' } }, item.valorDebito ? showMoney(item.valorDebito) : '-'), h('td', { className: 'right num', style: { color: 'var(--green)' } }, item.valorCredito ? showMoney(item.valorCredito) : '-'), h('td', { className: 'right num', style: { fontWeight: 'bold' } }, showMoney(item.saldo))))))))
             )
           )
 
         ),
 
-        // ================= MODAL: LANÇAMENTO DIRETO NA CONCILIAÇÃO =================
         lrModalOpen && h('div', { className: 'modal-overlay' },
           h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 480 } },
             h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 12 } }, h('div', { style: { fontSize: 16, fontWeight: 'bold' } }, "Lançamento Direto na Conciliação"), h('button', { type: 'button', className: 'icon', onClick: () => setLrModalOpen(false) }, h(XIcon))),
