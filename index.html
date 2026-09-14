@@ -821,17 +821,11 @@
 
       function executarEstornoBaixa(type, id, dataBaixa) {
         if (dataBaixa && (isDiaFechado(dataBaixa) || isMesFechado(dataBaixa.substring(0, 7)))) return alert("Dia ou mês bloqueado."); 
+        if (!window.confirm("Deseja estornar baixa?")) return;
         
         let transId = null;
-        let isConciliado = false;
-        if (type === "pagar") { const item = contasPagar.find(p => p.id === id); transId = item?.transferenciaId; isConciliado = item?.conciliado; }
-        else if (type === "receber") { const item = contasReceber.find(p => p.id === id); transId = item?.transferenciaId; isConciliado = item?.conciliado; }
-
-        if (isConciliado) {
-          return alert("⚠️ Este lançamento está conciliado!\n\nPara poder estornar a baixa ou excluir, você deve primeiro remover a conciliação bancária.");
-        }
-
-        if (!window.confirm("Deseja estornar baixa?")) return;
+        if (type === "pagar") { const item = contasPagar.find(p => p.id === id); transId = item?.transferenciaId; }
+        else if (type === "receber") { const item = contasReceber.find(p => p.id === id); transId = item?.transferenciaId; }
 
         const estornoUpdater = prev => prev.map(p => (p.id === id || (transId && p.transferenciaId === transId)) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null, conciliado: false } : p);
 
@@ -847,13 +841,7 @@
 
       function executarEstornoLote(type, ids) {
         if (!ids || ids.length === 0) return alert("Nenhum item selecionado."); const listaAlvo = type === "pagar" ? contasPagar : contasReceber;
-        for (const id of ids) { 
-          const item = listaAlvo.find(i => i.id === id); 
-          if (item) {
-            if (item.conciliado) return alert(`Estorno cancelado: Há itens selecionados que estão conciliados. Remova a conciliação primeiro.`);
-            if (item.dataBaixa && (isDiaFechado(item.dataBaixa) || isMesFechado(item.dataBaixa.substring(0, 7)))) return alert(`Estorno cancelado: Há itens cuja data de baixa (${formatDateBR(item.dataBaixa)}) ou mês está bloqueada.`); 
-          }
-        }
+        for (const id of ids) { const item = listaAlvo.find(i => i.id === id); if (item && item.dataBaixa) { if (isDiaFechado(item.dataBaixa) || isMesFechado(item.dataBaixa.substring(0, 7))) return alert(`Estorno cancelado: Há itens cuja data de baixa (${formatDateBR(item.dataBaixa)}) ou mês está bloqueada.`); } }
         if (!window.confirm(`Deseja estornar a baixa dos ${ids.length} itens?`)) return;
         if (type === "pagar") { updateContasPagar(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null, conciliado: false } : p)); setBatchPagarIds([]); } else if (type === "receber") { updateContasReceber(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null, conciliado: false } : p)); setBatchReceberIds([]); }
       }
@@ -911,7 +899,7 @@
           const ofxBancoCode = (parsed.ofxBankId || "").trim();
           const ofxContaNum = (parsed.ofxAcctId || "").replace(/\D/g, '');
 
-          // Validação robusta de Banco
+          // Validação robusta de Banco (considerando que o OFX pode ter 4 dígitos ex: "0033" e o cadastro "033")
           if (ofxBancoCode && sysBancoCode) {
             const cleanOfxBank = ofxBancoCode.replace(/^0+/, '');
             const cleanSysBank = sysBancoCode.replace(/^0+/, '');
@@ -965,17 +953,6 @@
         setSysSelectedIds([]);
       }
 
-      function removerConciliacaoItem(mov) {
-        if (!window.confirm("Deseja realmente remover a conciliação deste item?")) return;
-        if (mov.tipoOrigem === 'pagar') {
-          updateContasPagar(prev => prev.map(p => p.id === mov.itemRef.id ? { ...p, conciliado: false } : p));
-        } else if (mov.tipoOrigem === 'receber') {
-          updateContasReceber(prev => prev.map(p => p.id === mov.itemRef.id ? { ...p, conciliado: false } : p));
-        } else if (mov.tipoOrigem === 'fatura') {
-          updateFaturasBaixadas(prev => ({ ...prev, [mov.competenciaRef]: { ...prev[mov.competenciaRef], conciliado: false } }));
-        }
-      }
-
       function toggleOfxSelect(id) { setOfxSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
       function toggleSysSelect(id) { setSysSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
       function toggleSelectAllOfx() {
@@ -991,28 +968,6 @@
         } else {
           setSysSelectedIds(movimentacoesConciliacao.map(m => m.id));
         }
-      }
-
-      function handleNovoLancamentoFromOfx(ofxItem) {
-        setEditingId(null);
-        setDescricao(ofxItem.descricao || '');
-        setObservacao('');
-        const valorAbs = Math.abs(ofxItem.valor || 0);
-        setValorTotal(valorAbs.toFixed(2).replace('.', ','));
-        setValorParcelaInput(valorAbs.toFixed(2).replace('.', ','));
-        setDataLancamento(ofxItem.data || currentDate());
-        setFaturaMes((ofxItem.data || currentDate()).substring(0, 7));
-        setParcelas('1');
-        setParcelaAtual('1');
-        setCategoriaId('');
-        setSubcategoriaId('');
-        setIsRecorrente(false);
-        if (ofxItem.valor < 0) {
-          setLancamentoTab('pagar');
-        } else {
-          setLancamentoTab('receber');
-        }
-        setModalOpen(true);
       }
 
 
@@ -1375,10 +1330,7 @@
                         !isBaixado ? h('button', { type: 'button', className: 'primary', style: { padding: '4px' }, onClick: () => setBaixaModal({ open: true, type: 'pagar', id: p.id, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }), title: 'Baixar Lançamento' }, h(CheckCircle, { size: 14 })) : h('button', { type: 'button', className: 'danger', style: { padding: '4px' }, onClick: () => executarEstornoBaixa('pagar', p.id, p.dataBaixa), title: 'Estornar Baixa' }, h(RefreshCw, { size: 14 })), 
                         !isBaixado && h('button', { type: 'button', className: 'action-btn', onClick: () => { setEditingId(p.id); setDescricao(p.descricao); setObservacao(p.observacao || ''); setValorTotal(p.total.toFixed(2).replace('.', ',')); setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ',')); setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month); setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString()); setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || ''); setIsRecorrente(!!p.recorrente); setLancamentoTab('pagar'); setModalOpen(true); }, title: 'Editar' }, h(Pencil, { size: 14 })), 
                         h('button', { type: 'button', className: 'action-btn', onClick: () => { setEditingId(null); setDescricao(p.descricao + ' (Cópia)'); setObservacao(p.observacao || ''); setValorTotal(p.total.toFixed(2).replace('.', ',')); setValorParcelaInput((p.recorrente ? p.valorParcela : p.total).toFixed(2).replace('.', ',')); setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month); setParcelas(p.parcelas.toString()); setParcelaAtual('1'); setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || ''); setIsRecorrente(!!p.recorrente); setLancamentoTab('pagar'); setModalOpen(true); }, title: 'Duplicar' }, h(Copy, { size: 14 })),
-                        h('button', { type: 'button', className: 'action-btn delete', title: isBaixado ? 'Baixado: Exclusão bloqueada' : 'Excluir', onClick: () => {
-                          if (p.conciliado) return alert("⚠️ Este lançamento está conciliado!\n\nPara poder excluí-lo, você deve primeiro remover a conciliação bancária.");
-                          setDeleteModal({ open: true, type: 'pagar', id: p.id, purchase: p, title: 'Excluir Conta', message: isBaixado ? 'ERRO: Este lançamento já está baixado e não pode ser excluído.' : ``, option: 'current' });
-                        } }, h(Trash2, { size: 14 }))
+                        h('button', { type: 'button', className: 'action-btn delete', title: isBaixado ? 'Baixado: Exclusão bloqueada' : 'Excluir', onClick: () => setDeleteModal({ open: true, type: 'pagar', id: p.id, purchase: p, title: 'Excluir Conta', message: isBaixado ? 'ERRO: Este lançamento já está baixado e não pode ser excluído.' : ``, option: 'current' }) }, h(Trash2, { size: 14 }))
                       ))
                     );
                   })),
@@ -1423,10 +1375,7 @@
                         !isBaixado ? h('button', { type: 'button', className: 'primary', style: { padding: '4px' }, onClick: () => setBaixaModal({ open: true, type: 'receber', id: p.id, bancoId: contasBancarias[0]?.id || "", dataBaixa: currentDate() }), title: 'Baixar Recebimento' }, h(CheckCircle, { size: 14 })) : h('button', { type: 'button', className: 'danger', style: { padding: '4px' }, onClick: () => executarEstornoBaixa('receber', p.id, p.dataBaixa), title: 'Estornar Baixa' }, h(RefreshCw, { size: 14 })), 
                         !isBaixado && h('button', { type: 'button', className: 'action-btn', onClick: () => { setEditingId(p.id); setDescricao(p.descricao); setObservacao(p.observacao || ''); setValorTotal(p.total.toFixed(2).replace('.', ',')); setValorParcelaInput(p.valorParcela.toFixed(2).replace('.', ',')); setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month); setParcelas(p.parcelas.toString()); setParcelaAtual((p.parcelaInicial || 1).toString()); setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || ''); setIsRecorrente(!!p.recorrente); setLancamentoTab('receber'); setModalOpen(true); }, title: 'Editar' }, h(Pencil, { size: 14 })), 
                         h('button', { type: 'button', className: 'action-btn', onClick: () => { setEditingId(null); setDescricao(p.descricao + ' (Cópia)'); setObservacao(p.observacao || ''); setValorTotal(p.total.toFixed(2).replace('.', ',')); setValorParcelaInput((p.recorrente ? p.valorParcela : p.total).toFixed(2).replace('.', ',')); setDataLancamento(p.dataCompra || currentDate()); setFaturaMes(p.inicio || month); setParcelas(p.parcelas.toString()); setParcelaAtual('1'); setCategoriaId(p.categoriaId || ''); setSubcategoriaId(p.subcategoriaId || ''); setIsRecorrente(!!p.recorrente); setLancamentoTab('receber'); setModalOpen(true); }, title: 'Duplicar' }, h(Copy, { size: 14 })),
-                        h('button', { type: 'button', className: 'action-btn delete', title: isBaixado ? 'Baixado: Exclusão bloqueada' : 'Excluir', onClick: () => {
-                          if (p.conciliado) return alert("⚠️ Este lançamento está conciliado!\n\nPara poder excluí-lo, você deve primeiro remover a conciliação bancária.");
-                          setDeleteModal({ open: true, type: 'receber', id: p.id, purchase: p, title: 'Excluir Receita', message: isBaixado ? 'ERRO: Este lançamento já está baixado e não pode ser excluído.' : ``, option: 'current' });
-                        } }, h(Trash2, { size: 14 }))
+                        h('button', { type: 'button', className: 'action-btn delete', title: isBaixado ? 'Baixado: Exclusão bloqueada' : 'Excluir', onClick: () => setDeleteModal({ open: true, type: 'receber', id: p.id, purchase: p, title: 'Excluir Receita', message: isBaixado ? 'ERRO: Este lançamento já está baixado e não pode ser excluído.' : ``, option: 'current' }) }, h(Trash2, { size: 14 }))
                       ))
                     );
                   })),
@@ -1556,7 +1505,7 @@
 
               h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12, borderBottom: '2px solid var(--line)', paddingBottom: 8 } }, "Movimentação Detalhada do Período Filtrado"),
 
-              resumoDiarioConcil.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma movimentação para o período filtrado.") : resumoDiarioConcil.map(grupo => h('div', { key: grupo.data, style: { marginBottom: 16, border: '1px solid var(--line)', borderRadius: 6, background: '#fff', padding: 12 } }, h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', borderBottom: '1px solid var(--line)', paddingBottom: 6, marginBottom: 8 } }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h('span', null, `📅 ${formatDateBR(grupo.data)}`), h('button', { type: 'button', className: 'action-btn', style: { padding: '2px 6px', background: isDiaFechado(grupo.data) ? 'var(--amber-soft)' : '#fff' }, onClick: (e) => toggleDiaFechado(grupo.data, e) }, isDiaFechado(grupo.data) ? h(Lock, { size: 12, color: 'var(--amber)' }) : h(Unlock, { size: 12 }))), h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `Débitos: ${showMoney(grupo.debitos)} | Créditos: ${showMoney(grupo.creditos)}`)), h('table', { style: { marginTop: 0 } }, h('thead', null, h('tr', null, h('th', null, "Descrição / Obs"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'center' }, "Link"), h('th', { className: 'center' }, "Conciliado"), h('th', { className: 'right' }, "Débito (-)"), h('th', { className: 'right' }, "Crédito (+)"), h('th', { className: 'right' }, "Saldo"))), h('tbody', null, grupo.itens.map(item => h('tr', { key: item.id }, h('td', null, h('div', { style: { fontWeight: '500' } }, item.descricao), item.observacao && h('div', { style: { fontSize: 11, color: 'var(--ink-soft)' } }, `📝 ${item.observacao}`)), h('td', { className: 'center' }, h('span', { className: `badge ${item.tipo === 'Débito' ? 'aberto' : 'baixado'}` }, item.tipo)), h('td', { className: 'center' }, h('a', { href: '#', style: { color: 'var(--green)', fontWeight: 'bold', textDecoration: 'underline', fontSize: '12px' }, onClick: (e) => { e.preventDefault(); setConcilEditModal({ open: true, item }); } }, "🔗 Abrir / Alterar")), h('td', { className: 'center' }, item.conciliado ? h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 } }, h(CheckCircle, { color: 'var(--green)', size: 16 }), h('button', { type: 'button', className: 'action-btn', style: { fontSize: '10px', padding: '2px 4px', color: 'var(--red)', borderColor: 'var(--red)' }, onClick: () => removerConciliacaoItem(item), title: 'Remover Conciliação' }, 'Desfazer')) : '-'), h('td', { className: 'right num', style: { color: 'var(--red)' } }, item.valorDebito ? showMoney(item.valorDebito) : '-'), h('td', { className: 'right num', style: { color: 'var(--green)' } }, item.valorCredito ? showMoney(item.valorCredito) : '-'), h('td', { className: 'right num', style: { fontWeight: 'bold' } }, showMoney(item.saldo))))))))
+              resumoDiarioConcil.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)' } }, "Nenhuma movimentação para o período filtrado.") : resumoDiarioConcil.map(grupo => h('div', { key: grupo.data, style: { marginBottom: 16, border: '1px solid var(--line)', borderRadius: 6, background: '#fff', padding: 12 } }, h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', borderBottom: '1px solid var(--line)', paddingBottom: 6, marginBottom: 8 } }, h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } }, h('span', null, `📅 ${formatDateBR(grupo.data)}`), h('button', { type: 'button', className: 'action-btn', style: { padding: '2px 6px', background: isDiaFechado(grupo.data) ? 'var(--amber-soft)' : '#fff' }, onClick: (e) => toggleDiaFechado(grupo.data, e) }, isDiaFechado(grupo.data) ? h(Lock, { size: 12, color: 'var(--amber)' }) : h(Unlock, { size: 12 }))), h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `Débitos: ${showMoney(grupo.debitos)} | Créditos: ${showMoney(grupo.creditos)}`)), h('table', { style: { marginTop: 0 } }, h('thead', null, h('tr', null, h('th', null, "Descrição / Obs"), h('th', { className: 'center' }, "Tipo"), h('th', { className: 'center' }, "Link"), h('th', { className: 'center' }, "Conciliado"), h('th', { className: 'right' }, "Débito (-)"), h('th', { className: 'right' }, "Crédito (+)"), h('th', { className: 'right' }, "Saldo"))), h('tbody', null, grupo.itens.map(item => h('tr', { key: item.id }, h('td', null, h('div', { style: { fontWeight: '500' } }, item.descricao), item.observacao && h('div', { style: { fontSize: 11, color: 'var(--ink-soft)' } }, `📝 ${item.observacao}`)), h('td', { className: 'center' }, h('span', { className: `badge ${item.tipo === 'Débito' ? 'aberto' : 'baixado'}` }, item.tipo)), h('td', { className: 'center' }, h('a', { href: '#', style: { color: 'var(--green)', fontWeight: 'bold', textDecoration: 'underline', fontSize: '12px' }, onClick: (e) => { e.preventDefault(); setConcilEditModal({ open: true, item }); } }, "🔗 Abrir / Alterar")), h('td', { className: 'center' }, item.conciliado ? h(CheckCircle, { color: 'var(--green)', size: 16 }) : '-'), h('td', { className: 'right num', style: { color: 'var(--red)' } }, item.valorDebito ? showMoney(item.valorDebito) : '-'), h('td', { className: 'right num', style: { color: 'var(--green)' } }, item.valorCredito ? showMoney(item.valorCredito) : '-'), h('td', { className: 'right num', style: { fontWeight: 'bold' } }, showMoney(item.saldo))))))))
             ),
 
             concilExibido && concilTab === "ofx" && h(React.Fragment, null, 
@@ -1579,13 +1528,12 @@
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       ofxData.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhum arquivo importado.") :
                       h('table', null, 
-                        h('thead', null, h('tr', null, h('th', { style: { width: 30 } }), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"), h('th', { className: 'center' }, "Ações"))),
+                        h('thead', null, h('tr', null, h('th', { style: { width: 30 } }), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"))),
                         h('tbody', null, ofxData.map(o => h('tr', { key: o.id, style: { opacity: o.conciliado ? 0.5 : 1 } }, 
                           h('td', null, o.conciliado ? h(CheckCircle, { color: 'var(--green)' }) : h('input', { type: 'checkbox', checked: ofxSelectedIds.includes(o.id), onChange: () => toggleOfxSelect(o.id) })),
                           h('td', null, formatDateBR(o.data)),
                           h('td', null, o.descricao),
-                          h('td', { className: 'right num', style: { color: o.valor < 0 ? 'var(--red)' : 'var(--green)' } }, showMoney(Math.abs(o.valor))),
-                          h('td', { className: 'center' }, h('button', { type: 'button', className: 'primary', style: { padding: '2px 8px', fontSize: '11px' }, onClick: () => handleNovoLancamentoFromOfx(o), title: 'Novo Lançamento com dados deste OFX' }, "Novo Lançamento"))
+                          h('td', { className: 'right num', style: { color: o.valor < 0 ? 'var(--red)' : 'var(--green)' } }, showMoney(Math.abs(o.valor)))
                         )))
                       )
                    )
@@ -1661,31 +1609,15 @@
               h('div', { style: { fontSize: 14, marginBottom: 10 } }, h('b', null, "Valor: "), showMoney(concilEditModal.item.itemRef.recorrente ? concilEditModal.item.itemRef.valorParcela : (concilEditModal.item.itemRef.valorParcela || concilEditModal.item.itemRef.total))), h('div', { style: { fontSize: 14, marginBottom: 10 } }, h('b', null, "Status: "), concilEditModal.item.itemRef.status), h('div', { style: { fontSize: 14, marginBottom: 16 } }, h('b', null, "Baixado em: "), formatDateBR(concilEditModal.item.itemRef.dataBaixa), ` (${getConta(concilEditModal.item.itemRef.bancoBaixaId)?.nome || '-'})`),
               
               (() => {
-                  const refItem = concilEditModal.item.itemRef;
-                  const isDireto = refItem.isLancamentoDireto;
-                  const isConciliado = refItem.conciliado;
-                  return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 12, marginTop: 20 } },
-                      isConciliado && h('div', { style: { background: 'var(--amber-soft)', color: '#92400E', padding: '8px 12px', borderRadius: '4px', fontSize: '12px' } }, "⚠️ Este lançamento está conciliado e não pode ser excluído ou estornado até que a conciliação seja desfeita."),
-                      h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8 } },
-                          isDireto 
-                          ? h('button', { type: 'button', className: 'danger', disabled: isConciliado, onClick: () => {
-                              if (isConciliado) return alert("Remova a conciliação primeiro.");
-                              setDeleteModal({ open: true, type: concilEditModal.item.tipoOrigem, id: refItem.id, purchase: refItem, title: 'Excluir Lançamento Direto', message: 'Este é um lançamento direto e será permanentemente apagado. Deseja excluir?', option: 'all' });
-                              setConcilEditModal({ open: false, item: null });
-                          } }, h(Trash2, { size: 14 }), " Excluir Lançamento") 
-                          : h('button', { type: 'button', className: 'danger', disabled: isConciliado, onClick: () => {
-                              if (isConciliado) return alert("Remova a conciliação primeiro.");
-                              const tipo = concilEditModal.item.tipoOrigem;
-                              const id = refItem.id;
-                              const dataBaixa = refItem.dataBaixa;
-                              setConcilEditModal({ open: false, item: null });
-                              executarEstornoBaixa(tipo, id, dataBaixa);
-                          } }, "Estornar Baixa"),
-                          
-                          h('div', { style: { display: 'flex', gap: 8 } }, 
-                              h('button', { type: 'button', className: 'action-btn', onClick: () => setConcilEditModal({ open: false, item: null }) }, "Cancelar"), 
-                              !isDireto && h('button', { type: 'button', className: 'primary', onClick: () => { const ref = concilEditModal.item.itemRef; const tipo = concilEditModal.item.tipoOrigem; setConcilEditModal({ open: false, item: null }); setEditingId(ref.id); setDescricao(ref.descricao); setObservacao(ref.observacao || ''); setValorTotal(ref.total.toFixed(2).replace('.', ',')); setValorParcelaInput(ref.recorrente ? '' : (ref.valorParcela || ref.total).toFixed(2).replace('.', ',')); setDataLancamento(ref.dataCompra || currentDate()); setFaturaMes(ref.inicio || month); setParcelas(ref.parcelas.toString()); setParcelaAtual((ref.parcelaInicial || 1).toString()); setCategoriaId(ref.categoriaId || ''); setSubcategoriaId(ref.subcategoriaId || ''); setIsRecorrente(!!ref.recorrente); setLancamentoTab(tipo); setModalOpen(true); } }, "Editar")
-                          )
+                  const isDireto = concilEditModal.item.itemRef.isLancamentoDireto;
+                  return h('div', { style: { display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 20 } },
+                      isDireto 
+                      ? h('button', { type: 'button', className: 'danger', onClick: () => { setDeleteModal({ open: true, type: concilEditModal.item.tipoOrigem, id: concilEditModal.item.itemRef.id, purchase: concilEditModal.item.itemRef, title: 'Excluir Lançamento Direto', message: 'Este é um lançamento direto e será permanentemente apagado. Deseja excluir?', option: 'all' }); setConcilEditModal({ open: false, item: null }); } }, h(Trash2, { size: 14 }), " Excluir") 
+                      : h('button', { type: 'button', className: 'danger', onClick: () => { const tipo = concilEditModal.item.tipoOrigem; const id = concilEditModal.item.itemRef.id; const dataBaixa = concilEditModal.item.itemRef.dataBaixa; setConcilEditModal({ open: false, item: null }); executarEstornoBaixa(tipo, id, dataBaixa); } }, "Estornar Baixa"),
+                      
+                      h('div', { style: { display: 'flex', gap: 8 } }, 
+                          h('button', { type: 'button', className: 'action-btn', onClick: () => setConcilEditModal({ open: false, item: null }) }, "Cancelar"), 
+                          !isDireto && h('button', { type: 'button', className: 'primary', onClick: () => { const ref = concilEditModal.item.itemRef; const tipo = concilEditModal.item.tipoOrigem; setConcilEditModal({ open: false, item: null }); setEditingId(ref.id); setDescricao(ref.descricao); setObservacao(ref.observacao || ''); setValorTotal(ref.total.toFixed(2).replace('.', ',')); setValorParcelaInput(ref.recorrente ? '' : (ref.valorParcela || ref.total).toFixed(2).replace('.', ',')); setDataLancamento(ref.dataCompra || currentDate()); setFaturaMes(ref.inicio || month); setParcelas(ref.parcelas.toString()); setParcelaAtual((ref.parcelaInicial || 1).toString()); setCategoriaId(ref.categoriaId || ''); setSubcategoriaId(ref.subcategoriaId || ''); setIsRecorrente(!!ref.recorrente); setLancamentoTab(tipo); setModalOpen(true); } }, "Editar")
                       )
                   );
               })()
@@ -1811,7 +1743,7 @@
                 ),
                 h('label', { style: { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 14, cursor: 'pointer' } },
                   h('input', { type: 'radio', name: 'del_opt', checked: deleteModal.option === 'all', onChange: () => setDeleteModal({...deleteModal, option: 'all'}) }),
-                  h('div', { style: { gridColumn: 'span 2', fontWeight: 'bold' } }, "Excluir TUDO (Histórico completo)"), h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Remove o lançamento por completo."))
+                  h('div', null, h('div', { style: { fontWeight: 'bold' } }, "Excluir TUDO (Histórico completo)"), h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Remove o lançamento por completo."))
                 )
               ) : h('div', { style: { fontSize: 14, marginBottom: 20 } }, deleteModal.message || "Deseja realmente excluir este registro?"),
 
