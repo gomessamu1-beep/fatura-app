@@ -91,6 +91,15 @@
     }
 
     function parseOFX(ofxString) {
+      const getTagGlobal = (tag) => {
+        const reg = new RegExp(`<${tag}>([^<\\r\\n]+)`);
+        const m = ofxString.match(reg);
+        return m ? m[1].trim() : '';
+      };
+      
+      const ofxBankId = getTagGlobal('BANKID');
+      const ofxAcctId = getTagGlobal('ACCTID');
+
       const transRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/g;
       const transactions = [];
       let match;
@@ -117,7 +126,7 @@
           conciliado: false
         });
       }
-      return transactions;
+      return { ofxBankId, ofxAcctId, transactions };
     }
 
     const CARD_COLORS = ["#3C5A73", "#6B4226", "#7A6C46", "#4B4453", "#2F5233", "#8C3B2E"];
@@ -292,7 +301,7 @@
           if (session) loadDataFromSupabase(session.user.id);
           else {
             setPurchases([]); setContasPagar([]); setContasReceber([]); setCartoes([]); setContasBancarias([]);
-            setCategorias([]); setDeparaList([]); setFaturasFechadas({}); setFaturasBaixadas({}); setDiasFechados({}); setMesesFechados({});
+            setCategorias([]); setDeparaList([]); setFaturasFechadas({}); setFaturasBaixadas({}); setDiasFechados({}); setMesesFechados({}); setOfxData([]);
           }
         });
 
@@ -307,37 +316,38 @@
           setPurchases(data.purchases || []); setContasPagar(data.contas_pagar || []); setContasReceber(data.contas_receber || []);
           setCartoes(data.cartoes || []); setContasBancarias(data.contas_bancarias || []); setCategorias(loadedCats);
           setDeparaList(data.depara || []); setFaturasFechadas(data.faturas_fechadas || {}); setFaturasBaixadas(data.faturas_baixadas || {});
-          setDiasFechados(data.dias_fechados || {}); setMesesFechados(data.meses_fechados || {});
+          setDiasFechados(data.dias_fechados || {}); setMesesFechados(data.meses_fechados || {}); setOfxData(data.ofx_dados || []);
         } else {
           await supabaseClient.from('app_data').upsert({
             user_id: userId, purchases: [], contas_pagar: [], contas_receber: [], cartoes: [], contas_bancarias: [],
-            categorias: [], depara: [], faturas_fechadas: {}, faturas_baixadas: {}, dias_fechados: {}, meses_fechados: {}
+            categorias: [], depara: [], faturas_fechadas: {}, faturas_baixadas: {}, dias_fechados: {}, meses_fechados: {}, ofx_dados: []
           });
         }
         setDataLoading(false);
       }
 
-      async function saveDataToSupabase(newPurchases, newPagar, newReceber, newCartoes, newContas, newCategorias, newDepara, newFechadas, newFaturasBaixadas, newDias, newMeses) {
+      async function saveDataToSupabase(newPurchases, newPagar, newReceber, newCartoes, newContas, newCategorias, newDepara, newFechadas, newFaturasBaixadas, newDias, newMeses, newOfx) {
         if (!session) return; const userId = session.user.id;
         const { error } = await supabaseClient.from('app_data').upsert({
           user_id: userId, purchases: newPurchases, contas_pagar: newPagar, contas_receber: newReceber, cartoes: newCartoes,
           contas_bancarias: newContas, categorias: newCategorias, depara: newDepara, faturas_fechadas: newFechadas,
-          faturas_baixadas: newFaturasBaixadas, dias_fechados: newDias, meses_fechados: newMeses, updated_at: new Date()
+          faturas_baixadas: newFaturasBaixadas, dias_fechados: newDias, meses_fechados: newMeses, ofx_dados: newOfx, updated_at: new Date()
         }, { onConflict: 'user_id' }); 
         if (error) { console.error("ERRO:", error); alert("Erro ao salvar! " + error.message); }
       }
 
-      function updatePurchases(updater) { setPurchases(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(next, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados); return next; }); }
-      function updateContasPagar(updater) { setContasPagar(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, next, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados); return next; }); }
-      function updateContasReceber(updater) { setContasReceber(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, next, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados); return next; }); }
-      function updateCartoes(updater) { setCartoes(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, next, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados); return next; }); }
-      function updateContasBancarias(updater) { setContasBancarias(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, next, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados); return next; }); }
-      function updateCategorias(updater) { setCategorias(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, next, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados); return next; }); }
-      function updateDepara(updater) { setDeparaList(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, next, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados); return next; }); }
-      function updateFechadas(updater) { setFaturasFechadas(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, next, faturasBaixadas, diasFechados, mesesFechados); return next; }); }
-      function updateFaturasBaixadas(updater) { setFaturasBaixadas(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, next, diasFechados, mesesFechados); return next; }); }
-      function updateDiasFechados(updater) { setDiasFechados(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, next, mesesFechados); return next; }); }
-      function updateMesesFechados(updater) { setMesesFechados(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, next); return next; }); }
+      function updatePurchases(updater) { setPurchases(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(next, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateContasPagar(updater) { setContasPagar(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, next, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateContasReceber(updater) { setContasReceber(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, next, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateCartoes(updater) { setCartoes(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, next, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateContasBancarias(updater) { setContasBancarias(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, next, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateCategorias(updater) { setCategorias(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, next, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateDepara(updater) { setDeparaList(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, next, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateFechadas(updater) { setFaturasFechadas(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, next, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateFaturasBaixadas(updater) { setFaturasBaixadas(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, next, diasFechados, mesesFechados, ofxData); return next; }); }
+      function updateDiasFechados(updater) { setDiasFechados(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, next, mesesFechados, ofxData); return next; }); }
+      function updateMesesFechados(updater) { setMesesFechados(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, next, ofxData); return next; }); }
+      function updateOfxData(updater) { setOfxData(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, next); return next; }); }
 
       function getCartao(id) { return cartoes.find(c => c.id === id) || null; }
       function getConta(id) { return contasBancarias.find(c => c.id === id) || null; }
@@ -869,15 +879,45 @@
       const saldoFinalConcil = totalCreditosConcil - totalDebitosConcil;
 
       function handleOfxUpload(e) {
+        if (!concilContaId) {
+          alert("Selecione a Conta Bancária no filtro antes de importar o arquivo OFX.");
+          if (ofxInputRef.current) ofxInputRef.current.value = "";
+          return;
+        }
+
+        const contaSelecionada = contasBancarias.find(c => c.id === concilContaId);
         const file = e.target.files[0];
         if (!file) return;
+
         const reader = new FileReader();
         reader.onload = (evt) => {
           const parsed = parseOFX(evt.target.result);
-          setOfxData(parsed);
+          
+          const sysBancoCode = contaSelecionada.bancoCode;
+          const sysContaNum = (contaSelecionada.numero || "").replace(/\D/g, '');
+          
+          const ofxBancoCode = parsed.ofxBankId;
+          const ofxContaNum = (parsed.ofxAcctId || "").replace(/\D/g, '');
+
+          if (ofxBancoCode && sysBancoCode && ofxBancoCode !== sysBancoCode) {
+            alert(`Importação bloqueada: O código do banco no arquivo OFX (${ofxBancoCode}) não corresponde ao da conta selecionada (${sysBancoCode}).`);
+            if (ofxInputRef.current) ofxInputRef.current.value = "";
+            return;
+          }
+
+          if (ofxContaNum && sysContaNum) {
+            if (!ofxContaNum.includes(sysContaNum) && !sysContaNum.includes(ofxContaNum)) {
+              alert(`Importação bloqueada: O número da conta no arquivo OFX (${parsed.ofxAcctId}) não corresponde à conta selecionada (${contaSelecionada.numero}).`);
+              if (ofxInputRef.current) ofxInputRef.current.value = "";
+              return;
+            }
+          }
+
+          updateOfxData(parsed.transactions);
           setOfxSelectedIds([]);
           setSysSelectedIds([]);
         };
+        
         reader.readAsText(file);
         if (ofxInputRef.current) ofxInputRef.current.value = "";
       }
@@ -886,7 +926,7 @@
         if (ofxSelectedIds.length === 0 && sysSelectedIds.length === 0) return alert("Selecione os itens para conciliar.");
         
         if (ofxSelectedIds.length > 0) {
-          setOfxData(prev => prev.map(o => ofxSelectedIds.includes(o.id) ? { ...o, conciliado: true } : o));
+          updateOfxData(prev => prev.map(o => ofxSelectedIds.includes(o.id) ? { ...o, conciliado: true } : o));
         }
 
         if (sysSelectedIds.length > 0) {
@@ -918,7 +958,7 @@
           const strD = `${ano}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`; let deb = 0; let cred = 0;
           if (concilContaId) {
             contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa === strD) deb += p.recorrente ? (p.valorParcela||p.total) : (p.valorParcela || p.total); });
-            contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += r.recorrente ? (r.valorParcela||r.total) : (r.valorParcela || r.total); });
+            contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += r.recorrente ? (p.valorParcela||p.total) : (r.valorParcela || r.total); });
             Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
               if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa === strD) {
                 const values = purchases.map(p => { 
@@ -1671,4 +1711,65 @@
                 ),
                 h('label', { style: { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 14, cursor: 'pointer' } },
                   h('input', { type: 'radio', name: 'del_opt', checked: deleteModal.option === 'future', onChange: () => setDeleteModal({...deleteModal, option: 'future'}) }),
-                  hNão fui programado para fazer isso. Só consigo gerar texto.
+                  h('div', null, h('div', { style: { fontWeight: 'bold' } }, "Excluir deste mês em diante"), h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, `Cancela as parcelas futuras a partir de ${formatMonthLabel(month)}.`))
+                ),
+                h('label', { style: { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 14, cursor: 'pointer' } },
+                  h('input', { type: 'radio', name: 'del_opt', checked: deleteModal.option === 'all', onChange: () => setDeleteModal({...deleteModal, option: 'all'}) }),
+                  h('div', null, h('div', { style: { fontWeight: 'bold' } }, "Excluir TUDO (Histórico completo)"), h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Remove o lançamento por completo."))
+                )
+              ) : h('div', { style: { fontSize: 14, marginBottom: 20 } }, deleteModal.message || "Deseja realmente excluir este registro?"),
+
+            h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8 } },
+              h('button', { type: 'button', className: 'action-btn', onClick: () => setDeleteModal({ open: false, type: null, id: null, subId: null, purchase: null, title: "", message: "", option: "all" }) }, "Cancelar"),
+              h('button', { type: 'button', className: 'danger', onClick: handleConfirmDelete }, "Confirmar Exclusão")
+            )
+          )
+        ),
+
+        contaModalOpen && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420 } },
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, editingContaId ? "Editar Conta Bancária" : "Nova Conta Bancária"),
+            h('form', { onSubmit: handleSaveConta, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+              h('div', { className: 'field' }, h('label', null, "Nome da Conta *"), h('input', { type: 'text', placeholder: 'Ex: Conta PJ Bradesco', value: novaContaNome, onChange: e => setNovaContaNome(e.target.value), required: true })),
+              h('div', { className: 'field' }, h('label', null, "Banco Febraban *"), h('select', { value: novaContaBanco, onChange: e => setNovaContaBanco(e.target.value) }, BANCOS_FEBRABAN.map(b => h('option', { key: b.code, value: b.code }, b.name)))),
+              h('div', { className: 'field' }, h('label', null, "Tipo de Conta *"), h('select', { value: novaContaTipo, onChange: e => setNovaContaTipo(e.target.value) }, h('option', { value: "corrente" }, "Conta Corrente"), h('option', { value: "investimento" }, "Conta Investimento"), h('option', { value: "dinheiro" }, "Dinheiro / Caixa Físico"), h('option', { value: "outros" }, "Outros"))),
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+                h('div', { className: 'field' }, h('label', null, "Agência"), h('input', { type: 'text', placeholder: '0000', value: novaContaAgencia, onChange: e => setNovaContaAgencia(e.target.value) })),
+                h('div', { className: 'field' }, h('label', null, "Número da Conta"), h('input', { type: 'text', placeholder: '00000-0', value: novaContaNumero, onChange: e => setNovaContaNumero(e.target.value) }))
+              ),
+              contaError && h('div', { style: { color: 'var(--red)', fontSize: 12 } }, contaError),
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setContaModalOpen(false) }, "Cancelar"), h('button', { type: 'submit', className: 'primary' }, "Salvar"))
+            )
+          )
+        ),
+
+        cartaoModalOpen && h('div', { className: 'modal-overlay' },
+          h('div', { className: 'modal-content', onClick: e => e.stopPropagation(), style: { maxWidth: 420 } },
+            h('div', { style: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 } }, editingCartaoId ? "Editar Cartão" : "Novo Cartão"),
+            h('form', { onSubmit: handleSaveCartao, style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+              h('div', { className: 'field' }, h('label', null, "Nome do Cartão *"), h('input', { type: 'text', placeholder: 'Ex: Nubank, Visa Infinite', value: novoCartaoNome, onChange: e => setNovoCartaoNome(e.target.value), required: true })),
+              h('div', { className: 'field' }, h('label', null, "Banco Emissor"), h('select', { value: novoCartaoBanco, onChange: e => setNovoCartaoBanco(e.target.value) }, BANCOS_FEBRABAN.map(b => h('option', { key: b.code, value: b.code }, b.name)))),
+              h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } },
+                h('div', { className: 'field' }, h('label', null, "Dia Fechamento"), h('input', { type: 'number', min: '1', max: '31', value: novoCartaoFechamento, onChange: e => setNovoCartaoFechamento(e.target.value) })),
+                h('div', { className: 'field' }, h('label', null, "Dia Vencimento"), h('input', { type: 'number', min: '1', max: '31', value: novoCartaoVencimento, onChange: e => setNovoCartaoVencimento(e.target.value) }))
+              ),
+              h('div', { className: 'field' }, h('label', null, "Cor do Cartão"), h('div', { className: 'color-swatches' }, CARD_COLORS.map(cor => h('button', { type: 'button', key: cor, className: `color-swatch ${novoCartaoCor === cor ? 'selected' : ''}`, style: { background: cor }, onClick: () => setNovoCartaoCor(cor) })))),
+              cartaoError && h('div', { style: { color: 'var(--red)', fontSize: 12 } }, cartaoError),
+              h('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 } }, h('button', { type: 'button', className: 'action-btn', onClick: () => setCartaoModalOpen(false) }, "Cancelar"), h('button', { type: 'submit', className: 'primary' }, "Salvar"))
+            )
+          )
+        )
+
+      );
+    }
+
+    ReactDOM.createRender = ReactDOM.createRoot ? (node) => ReactDOM.createRoot(node) : null;
+    const container = document.getElementById('root');
+    if (ReactDOM.createRoot) {
+      ReactDOM.createRoot(container).render(h(FaturaApp));
+    } else {
+      ReactDOM.render(h(FaturaApp), container);
+    }
+  </script>
+</body>
+</html>
