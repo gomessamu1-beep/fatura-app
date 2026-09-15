@@ -910,7 +910,7 @@
         });
 
         lista.sort((a, b) => a.data.localeCompare(b.data));
-        let saldoAcumulado = saldoAnterior;
+        let saldoAcumulado = saldoAnterior + Number(contasBancarias.find(c => String(c.id) === String(concilContaId))?.saldoInicial || 0);
         return lista.map(item => {
           saldoAcumulado += (item.valorCredito - item.valorDebito);
           return { ...item, saldo: saldoAcumulado };
@@ -929,6 +929,44 @@
       const ofxSelecionadoUnico=ofxSelectedIds.length===1?ofxData.find(o=>o.id===ofxSelectedIds[0]&&mesmaContaOfx(o.contaId,concilContaId)):null;
 
       function handleOfxUpload(e){ if(!concilContaId){alert('Selecione a Conta Bancária no filtro antes de importar o arquivo OFX.');return;} const conta=contasBancarias.find(c=>c.id===concilContaId),file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=evt=>{const parsed=parseOFX(evt.target.result);const banco=normalizeBankCode(conta?.bancoCode),num=normalizeAccountNumber(conta?.numero),bancos=[...new Set(parsed.transactions.map(t=>t.bancoCode).filter(Boolean))],contas=[...new Set(parsed.transactions.map(t=>normalizeAccountNumber(t.contaOfx)).filter(Boolean))];if(!parsed.transactions.length)return alert('O arquivo OFX não possui lançamentos válidos.');if(bancos.length&&banco&&!bancos.includes(banco))return alert(`Importação bloqueada: O banco do OFX (${bancos.join(', ')}) não corresponde ao banco da conta selecionada (${banco}).`);if(contas.length&&num&&!contas.some(n=>n===num||n.endsWith(num)||num.endsWith(n)))return alert(`Importação bloqueada: O número da conta no OFX (${contas.join(', ')}) não corresponde à conta selecionada (${conta.numero}).`);updateOfxData(prev=>[...prev,...parsed.transactions.map(t=>({...t,contaId:String(concilContaId),contaNome:conta.nome,bancoCode:t.bancoCode||banco}))]);setOfxSelectedIds([]);setSysSelectedIds([]);alert(`${parsed.transactions.length} lançamento(s) OFX importado(s) para a conta ${conta.nome}.`);};reader.readAsText(file);if(ofxInputRef.current)ofxInputRef.current.value='';}
+      const saldoInicialConciliacao = useMemo(() => {
+        if (!concilContaId || !concilDataIniAplicada) return 0;
+        const contaSelecionada = contasBancarias.find(c => String(c.id) === String(concilContaId));
+        if (!contaSelecionada) return 0;
+
+        let saldo = Number(contaSelecionada.saldoInicial || 0);
+
+        contasPagar.forEach(p => {
+          if (p.status === "Baixado" && String(p.bancoBaixaId) === String(concilContaId) && p.dataBaixa && p.dataBaixa < concilDataIniAplicada) {
+            saldo -= Number(p.recorrente ? p.valorParcela : (p.valorParcela || p.total)) || 0;
+          }
+        });
+        contasReceber.forEach(r => {
+          if (r.status === "Baixado" && String(r.bancoBaixaId) === String(concilContaId) && r.dataBaixa && r.dataBaixa < concilDataIniAplicada) {
+            saldo += Number(r.recorrente ? r.valorParcela : (r.valorParcela || r.total)) || 0;
+          }
+        });
+        Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
+          if (baixa && baixa.status === 'Baixado' && String(baixa.bancoId) === String(concilContaId) && baixa.dataBaixa && baixa.dataBaixa < concilDataIniAplicada) {
+            saldo -= Number(calcularTotalFaturaCompetencia(comp)) || 0;
+          }
+        });
+
+        return saldo;
+      }, [concilContaId, concilDataIniAplicada, contasBancarias, contasPagar, contasReceber, faturasBaixadas]);
+
+      const totalDebitosConciliacao = movimentacoesConciliacao.reduce(
+        (s, m) => s + Number(m.valorDebito || 0), 0
+      );
+
+      const totalCreditosConciliacao = movimentacoesConciliacao.reduce(
+        (s, m) => s + Number(m.valorCredito || 0), 0
+      );
+
+      const saldoFinalConciliacao =
+        saldoInicialConciliacao + totalCreditosConciliacao - totalDebitosConciliacao;
+
+
 
       function handleConciliarMatch(){if(!ofxSelectedIds.length||!sysSelectedIds.length)return alert('Selecione pelo menos um lançamento OFX e um lançamento do sistema.');const os=ofxData.filter(o=>ofxSelectedIds.includes(o.id)&&mesmaContaOfx(o.contaId,concilContaId)&&!o.conciliado),ss=movimentacoesConciliacao.filter(m=>sysSelectedIds.includes(m.id)&&!m.conciliado);if(!os.length||!ss.length)return alert('Selecione lançamentos ainda não conciliados.');const osig=new Set(os.map(o=>o.valor<0?'debito':'credito')),ssig=new Set(ss.map(m=>m.tipo==='Débito'?'debito':'credito'));if(osig.size!==1||ssig.size!==1||[...osig][0]!==[...ssig][0])return alert('Os lançamentos selecionados não são do mesmo valor.');const a=os.reduce((s,o)=>s+Math.round(Math.abs(o.valor)*100),0),b=ss.reduce((s,m)=>s+Math.round((m.valorDebito||m.valorCredito||0)*100),0);if(a!==b)return alert('Os lançamentos selecionados não são do mesmo valor.');updateOfxData(p=>p.map(o=>ofxSelectedIds.includes(o.id)&&mesmaContaOfx(o.contaId,concilContaId)?{...o,conciliado:true}:o));const pi=ss.filter(m=>m.tipoOrigem==='pagar').map(m=>m.itemRef.id),ri=ss.filter(m=>m.tipoOrigem==='receber').map(m=>m.itemRef.id),fi=ss.filter(m=>m.tipoOrigem==='fatura');if(pi.length)updateContasPagar(p=>p.map(x=>pi.includes(x.id)?{...x,conciliado:true}:x));if(ri.length)updateContasReceber(p=>p.map(x=>ri.includes(x.id)?{...x,conciliado:true}:x));if(fi.length)updateFaturasBaixadas(p=>{const n={...p};fi.forEach(m=>n[m.competenciaRef]={...n[m.competenciaRef],conciliado:true});return n;});setOfxSelectedIds([]);setSysSelectedIds([]);alert('Conciliação realizada com sucesso.');}
 
@@ -948,7 +986,7 @@
         const ultimoDia = new Date(ano, mes, 0).getDate();
         const primeiroDia = `${ano}-${String(mes).padStart(2, "0")}-01`;
         const dias = [];
-        let acumulado = 0;
+        let acumulado = Number(contasBancarias.find(c => String(c.id) === String(concilContaId))?.saldoInicial || 0);
 
         if (concilContaId) {
           // Carrega o saldo acumulado de todos os meses anteriores.
@@ -985,7 +1023,7 @@
           dias.push({ data: strD, diaNum: d, debitos: deb, cred: cred, saldo: acumulado });
         }
         return dias;
-      }, [concilCalMes, concilContaId, contasPagar, contasReceber, faturasBaixadas, purchases]);
+      }, [concilCalMes, concilContaId, contasBancarias, contasPagar, contasReceber, faturasBaixadas, purchases]);
 
       const contasPagarFiltradasRelatorio = useMemo(() => {
         return contasPagarForMonth.filter(p => {
@@ -1470,10 +1508,23 @@
             h('div', { style: { display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 20, flexWrap: 'wrap' } }, h('div', { className: 'field' }, h('label', null, "Conta Bancária *"), h('select', { value: concilContaId, onChange: e => { setConcilContaId(e.target.value); setOfxSelectedIds([]); setSysSelectedIds([]); } }, h('option', { value: "" }, "Selecione a conta..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))), h('div', { className: 'field' }, h('label', null, "Data Inicial"), h('input', { type: 'date', value: concilDataIni, onChange: e => setConcilDataIni(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Data Final"), h('input', { type: 'date', value: concilDataFim, onChange: e => setConcilDataFim(e.target.value) })), h('button', { type: 'button', className: 'primary', style: { height: 38 }, onClick: () => { if (!concilContaId) { alert('Selecione a Conta Bancária no filtro antes de consultar.'); return; } if (!concilDataIni || !concilDataFim) { alert('Informe a Data Inicial e a Data Final.'); return; } if (concilDataIni > concilDataFim) { alert('A Data Inicial não pode ser maior que a Data Final.'); return; } setConcilDataIniAplicada(concilDataIni); setConcilDataFimAplicada(concilDataFim); setConcilExibido(true); setOfxSelectedIds([]); setSysSelectedIds([]); } }, "Filtrar Período")),
 
             concilExibido && concilTab === "extrato" && h(React.Fragment, null,
-              h('div', { style: { display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' } },
-                h('div', { className: 'top', style: { flex: 1, margin: 0, padding: 14 } }, h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Total Débitos (Pagamentos)"), h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold', color: 'var(--red)' } }, showMoney(totalDebitosConcil))),
-                h('div', { className: 'top', style: { flex: 1, margin: 0, padding: 14 } }, h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Total Créditos (Recebimentos)"), h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold', color: 'var(--green)' } }, showMoney(totalCreditosConcil))),
-                h('div', { className: 'top', style: { flex: 1, margin: 0, padding: 14 } }, h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Saldo Final da Conta"), h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold' } }, showMoney(saldoFinalConcil)))
+              h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 20, marginBottom: 20 } },
+                h('div', { className: 'top', style: { margin: 0, padding: 14 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Saldo inicial"),
+                  h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold' } }, showMoney(saldoInicialConciliacao))
+                ),
+                h('div', { className: 'top', style: { margin: 0, padding: 14 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Total Débitos (Pagamentos)"),
+                  h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold', color: 'var(--red)' } }, showMoney(totalDebitosConciliacao))
+                ),
+                h('div', { className: 'top', style: { margin: 0, padding: 14 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Total Créditos (Recebimentos)"),
+                  h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold', color: 'var(--green)' } }, showMoney(totalCreditosConciliacao))
+                ),
+                h('div', { className: 'top', style: { margin: 0, padding: 14 } },
+                  h('div', { style: { fontSize: 12, color: 'var(--ink-soft)' } }, "Saldo Final da Conta"),
+                  h('div', { className: 'num', style: { fontSize: 22, fontWeight: 'bold' } }, showMoney(saldoFinalConciliacao))
+                )
               ),
 
               h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, padding: '10px 14px', background: '#F2EFE9', borderRadius: 6, border: '1px solid var(--line)' } }, 
@@ -1530,12 +1581,13 @@
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       movimentacoesConciliacao.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma movimentação baixada neste período.") :
                       h('table', null, 
-                        h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', title: 'Selecionar todos', checked: movimentacoesConciliacao.filter(m=>!m.conciliado).length > 0 && sysSelectedIds.length === movimentacoesConciliacao.filter(m=>!m.conciliado).length, onChange: toggleSelectAllSys })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"))),
+                        h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', title: 'Selecionar todos', checked: movimentacoesConciliacao.filter(m=>!m.conciliado).length > 0 && movimentacoesConciliacao.filter(m=>!m.conciliado).every(m=>sysSelectedIds.includes(m.id)), onChange: toggleSelectAllSys })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"), h('th', { className: 'right' }, "Saldo"))),
                         h('tbody', null, movimentacoesConciliacao.map(sys => h('tr', { key: sys.id, style: { opacity: sys.conciliado ? 0.5 : 1 } }, 
                           h('td', null, sys.conciliado ? h(CheckCircle, { color: 'var(--green)' }) : h('input', { type: 'checkbox', checked: sysSelectedIds.includes(sys.id), onChange: () => toggleSysSelect(sys.id) })),
                           h('td', null, formatDateBR(sys.data)),
                           h('td', null, sys.descricao),
-                          h('td', { className: 'right num', style: { color: sys.tipo === 'Débito' ? 'var(--red)' : 'var(--green)' } }, showMoney(sys.valorDebito || sys.valorCredito))
+                          h('td', { className: 'right num', style: { color: sys.tipo === 'Débito' ? 'var(--red)' : 'var(--green)' } }, showMoney(sys.valorDebito || sys.valorCredito)),
+                          h('td', { className: 'right num', style: { fontWeight: 'bold' } }, showMoney(sys.saldo))
                         )))
                       )
                    )
