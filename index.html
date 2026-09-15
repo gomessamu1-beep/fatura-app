@@ -90,43 +90,15 @@
       return Math.random().toString(36).slice(2, 10);
     }
 
+    function normalizeBankCode(code) { const digits=String(code||'').replace(/\D/g,''); if(!digits)return ''; return digits.length>=4?digits.slice(-3).padStart(3,'0'):digits.padStart(3,'0'); }
+    function normalizeAccountNumber(value) { return String(value||'').replace(/\D/g,''); }
     function parseOFX(ofxString) {
-      const getTagGlobal = (tag) => {
-        const reg = new RegExp(`<${tag}>([^<\\r\\n]+)`);
-        const m = ofxString.match(reg);
-        return m ? m[1].trim() : '';
-      };
-      
-      const ofxBankId = getTagGlobal('BANKID');
-      const ofxAcctId = getTagGlobal('ACCTID');
-
-      const transRegex = /<STMTTRN>([\s\S]*?)<\/STMTTRN>/g;
-      const transactions = [];
-      let match;
-      while ((match = transRegex.exec(ofxString)) !== null) {
-        const block = match[1];
-        const getTag = (tag) => {
-          const reg = new RegExp(`<${tag}>([^<\\r\\n]+)`);
-          const m = block.match(reg);
-          return m ? m[1].trim() : '';
-        };
-        const type = getTag('TRNTYPE');
-        const dt = getTag('DTPOSTED').substring(0,8);
-        const amt = parseFloat(getTag('TRNAMT'));
-        const fitid = getTag('FITID');
-        const memo = getTag('MEMO');
-        const name = getTag('NAME');
-        
-        transactions.push({
-          id: fitid || uid(),
-          data: dt ? `${dt.substring(0,4)}-${dt.substring(4,6)}-${dt.substring(6,8)}` : '',
-          valor: amt,
-          descricao: name || memo || 'Transação OFX',
-          tipo: type,
-          conciliado: false
-        });
-      }
-      return { ofxBankId, ofxAcctId, transactions };
+      const transactions=[]; let ordemImportacao=0;
+      const statementRegex=/<STMTRS>([\s\S]*?)(?:<\/STMTRS>|(?=<STMTRS>))/gi; const statements=[]; let sm;
+      while((sm=statementRegex.exec(ofxString))!==null) statements.push(sm[1]); if(!statements.length) statements.push(ofxString);
+      statements.forEach(statement=>{ const getTag=(text,tag)=>{const m=text.match(new RegExp(`<${tag}>([^<\\r\\n]+)`,'i'));return m?m[1].trim():'';}; const rawBankId=getTag(statement,'BANKID'); const bankCode=normalizeBankCode(rawBankId); const acctId=getTag(statement,'ACCTID'); const rx=/<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi; let match;
+        while((match=rx.exec(statement))!==null){ const block=match[1], type=getTag(block,'TRNTYPE').toUpperCase(), dt=getTag(block,'DTPOSTED').substring(0,8), amt=Number.parseFloat(getTag(block,'TRNAMT')), fitid=getTag(block,'FITID'), memo=getTag(block,'MEMO'), name=getTag(block,'NAME'); if(!Number.isFinite(amt)) continue; transactions.push({id:fitid||`ofx-${Date.now()}-${ordemImportacao}-${uid()}`,data:dt?`${dt.substring(0,4)}-${dt.substring(4,6)}-${dt.substring(6,8)}`:'',valor:amt,descricao:name||memo||'Transação OFX',tipo:type,conciliado:false,contaOfx:acctId,bancoOfx:rawBankId,bancoCode:bankCode,ordemImportacao:ordemImportacao++}); }
+      }); return {transactions};
     }
 
     const CARD_COLORS = ["#3C5A73", "#6B4226", "#7A6C46", "#4B4453", "#2F5233", "#8C3B2E"];
@@ -135,6 +107,7 @@
       const [session, setSession] = useState(null);
       const [authLoading, setAuthLoading] = useState(true);
       const [dataLoading, setDataLoading] = useState(false);
+      const [dataReady, setDataReady] = useState(false);
       const [authEmail, setAuthEmail] = useState("");
       const [authPassword, setAuthPassword] = useState("");
       const [authError, setAuthError] = useState("");
@@ -323,31 +296,14 @@
             categorias: [], depara: [], faturas_fechadas: {}, faturas_baixadas: {}, dias_fechados: {}, meses_fechados: {}, ofx_dados: []
           });
         }
-        setDataLoading(false);
+        setDataReady(true); setDataLoading(false);
       }
 
-      async function saveDataToSupabase(newPurchases, newPagar, newReceber, newCartoes, newContas, newCategorias, newDepara, newFechadas, newFaturasBaixadas, newDias, newMeses, newOfx) {
-        if (!session) return; const userId = session.user.id;
-        const { error } = await supabaseClient.from('app_data').upsert({
-          user_id: userId, purchases: newPurchases, contas_pagar: newPagar, contas_receber: newReceber, cartoes: newCartoes,
-          contas_bancarias: newContas, categorias: newCategorias, depara: newDepara, faturas_fechadas: newFechadas,
-          faturas_baixadas: newFaturasBaixadas, dias_fechados: newDias, meses_fechados: newMeses, ofx_dados: newOfx, updated_at: new Date()
-        }, { onConflict: 'user_id' }); 
-        if (error) { console.error("ERRO:", error); alert("Erro ao salvar! " + error.message); }
-      }
-
-      function updatePurchases(updater) { setPurchases(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(next, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateContasPagar(updater) { setContasPagar(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, next, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateContasReceber(updater) { setContasReceber(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, next, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateCartoes(updater) { setCartoes(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, next, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateContasBancarias(updater) { setContasBancarias(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, next, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateCategorias(updater) { setCategorias(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, next, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateDepara(updater) { setDeparaList(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, next, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateFechadas(updater) { setFaturasFechadas(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, next, faturasBaixadas, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateFaturasBaixadas(updater) { setFaturasBaixadas(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, next, diasFechados, mesesFechados, ofxData); return next; }); }
-      function updateDiasFechados(updater) { setDiasFechados(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, next, mesesFechados, ofxData); return next; }); }
-      function updateMesesFechados(updater) { setMesesFechados(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, next, ofxData); return next; }); }
-      function updateOfxData(updater) { setOfxData(prev => { const next = typeof updater === 'function' ? updater(prev) : updater; saveDataToSupabase(purchases, contasPagar, contasReceber, cartoes, contasBancarias, categorias, deparaList, faturasFechadas, faturasBaixadas, diasFechados, mesesFechados, next); return next; }); }
+      const saveTimerRef=useRef(null), savingRef=useRef(false), pendingSaveRef=useRef(false);
+      async function saveDataToSupabase(){ if(!session||!dataReady||!supabaseClient)return; const payload={user_id:session.user.id,purchases,contas_pagar:contasPagar,contas_receber:contasReceber,cartoes,contas_bancarias:contasBancarias,categorias,depara:deparaList,faturas_fechadas:faturasFechadas,faturas_baixadas:faturasBaixadas,dias_fechados:diasFechados,meses_fechados:mesesFechados,ofx_dados:ofxData,updated_at:new Date().toISOString()}; if(savingRef.current){pendingSaveRef.current=true;return;} savingRef.current=true; const {error}=await supabaseClient.from('app_data').upsert(payload,{onConflict:'user_id'}); savingRef.current=false; if(error){console.error('ERRO AO SALVAR:',error);alert('Erro ao salvar! '+error.message);} if(pendingSaveRef.current){pendingSaveRef.current=false;scheduleSave();}}
+      function scheduleSave(){if(!session||!dataReady)return;if(saveTimerRef.current)clearTimeout(saveTimerRef.current);saveTimerRef.current=setTimeout(()=>{saveTimerRef.current=null;saveDataToSupabase();},250);}
+      useEffect(()=>{if(!session||!dataReady)return;scheduleSave();return()=>{if(saveTimerRef.current)clearTimeout(saveTimerRef.current);};},[session,dataReady,purchases,contasPagar,contasReceber,cartoes,contasBancarias,categorias,deparaList,faturasFechadas,faturasBaixadas,diasFechados,mesesFechados,ofxData]);
+      function updatePurchases(u){setPurchases(p=>typeof u==='function'?u(p):u);} function updateContasPagar(u){setContasPagar(p=>typeof u==='function'?u(p):u);} function updateContasReceber(u){setContasReceber(p=>typeof u==='function'?u(p):u);} function updateCartoes(u){setCartoes(p=>typeof u==='function'?u(p):u);} function updateContasBancarias(u){setContasBancarias(p=>typeof u==='function'?u(p):u);} function updateCategorias(u){setCategorias(p=>typeof u==='function'?u(p):u);} function updateDepara(u){setDeparaList(p=>typeof u==='function'?u(p):u);} function updateFechadas(u){setFaturasFechadas(p=>typeof u==='function'?u(p):u);} function updateFaturasBaixadas(u){setFaturasBaixadas(p=>typeof u==='function'?u(p):u);} function updateDiasFechados(u){setDiasFechados(p=>typeof u==='function'?u(p):u);} function updateMesesFechados(u){setMesesFechados(p=>typeof u==='function'?u(p):u);} function updateOfxData(u){setOfxData(p=>typeof u==='function'?u(p):u);}
 
       function getCartao(id) { return cartoes.find(c => c.id === id) || null; }
       function getConta(id) { return contasBancarias.find(c => c.id === id) || null; }
@@ -620,7 +576,7 @@
           const temTabulacao = linhaOriginal.startsWith("\t") || linhaOriginal.startsWith("    "); const limpa = linhaOriginal.trim(); if (!limpa) return;
           const ehSub = temTabulacao || limpa.startsWith("-") || limpa.startsWith("•"); const nomeItem = limpa.replace(/^[-•]\s*/, "").trim();
           if (!ehSub) { let catExistente = novasCategorias.find(c => c.tipo === categoriaTipoTab && c.nome.toLowerCase() === nomeItem.toLowerCase()); if (!catExistente) { catExistente = { id: uid(), tipo: categoriaTipoTab, nome: nomeItem, cor: CARD_COLORS[novasCategorias.length % CARD_COLORS.length], isTransferencia: false, subcategorias: [] }; novasCategorias.push(catExistente); qtdCatAdicionadas++; } catAtual = catExistente; } 
-          else { if (catAtual) { let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: item => item }); qtdSubAdicionadas++; } } else { const catsDoTipo = novasCategorias.filter(c => c.tipo === categoriaTipoTab); if (catsDoTipo.length > 0) { catAtual = catsDoTipo[catsDoTipo.length - 1]; let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } } }
+          else { if (catAtual) { let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } else { const catsDoTipo = novasCategorias.filter(c => c.tipo === categoriaTipoTab); if (catsDoTipo.length > 0) { catAtual = catsDoTipo[catsDoTipo.length - 1]; let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } } }
         });
         updateCategorias(novasCategorias); setTxtCategoriasContent(""); alert(`Concluído!\n- ${qtdCatAdicionadas} categorias\n- ${qtdSubAdicionadas} subcategorias`);
       }
@@ -631,6 +587,7 @@
         const { type, id, subId, option, purchase } = deleteModal;
         
         const transId = purchase?.transferenciaId;
+        const listaAtual=type==='purchase'?purchases:type==='pagar'?contasPagar:type==='receber'?contasReceber:[]; if(listaAtual.find(p=>p.id===id)?.conciliado)return alert('Não é permitido excluir um lançamento conciliado. Desfaça a conciliação primeiro.');
         
         const updater = (prev) => {
           if (option === 'current') return prev.map(p => p.id === id ? { ...p, mesesExcluidos: [...(p.mesesExcluidos || []), month] } : p);
@@ -666,7 +623,7 @@
 
       function handleBatchDeleteConfirm(e) {
         e.preventDefault(); if (batchConfirmText.trim().toUpperCase() !== "EXCLUIR") return alert("Digite EXCLUIR para confirmar.");
-        if (lancamentoTab === "cartao") { updatePurchases(prev => prev.filter(p => !selectedCartaoIds.includes(p.id))); setSelectedCartaoIds([]); } else if (lancamentoTab === "pagar") { updateContasPagar(prev => prev.filter(p => !batchPagarIds.includes(p.id))); setBatchPagarIds([]); } else if (lancamentoTab === "receber") { updateContasReceber(prev => prev.filter(p => !batchReceberIds.includes(p.id))); setBatchReceberIds([]); }
+        if (lancamentoTab === "cartao") { if(purchases.some(p=>selectedCartaoIds.includes(p.id)&&p.conciliado))return alert('Não é permitido excluir lançamentos conciliados. Desfaça a conciliação primeiro.'); updatePurchases(prev => prev.filter(p => !selectedCartaoIds.includes(p.id))); setSelectedCartaoIds([]); } else if (lancamentoTab === "pagar") { if(contasPagar.some(p=>batchPagarIds.includes(p.id)&&p.conciliado))return alert('Não é permitido excluir lançamentos conciliados. Desfaça a conciliação primeiro.'); updateContasPagar(prev => prev.filter(p => !batchPagarIds.includes(p.id))); setBatchPagarIds([]); } else if (lancamentoTab === "receber") { if(contasReceber.some(p=>batchReceberIds.includes(p.id)&&p.conciliado))return alert('Não é permitido excluir lançamentos conciliados. Desfaça a conciliação primeiro.'); updateContasReceber(prev => prev.filter(p => !batchReceberIds.includes(p.id))); setBatchReceberIds([]); }
         setBatchConfirmText(""); setBatchDeleteModalOpen(false);
       }
 
@@ -824,8 +781,8 @@
         if (!window.confirm("Deseja estornar baixa?")) return;
         
         let transId = null;
-        if (type === "pagar") { const item = contasPagar.find(p => p.id === id); transId = item?.transferenciaId; }
-        else if (type === "receber") { const item = contasReceber.find(p => p.id === id); transId = item?.transferenciaId; }
+        if (type === "pagar") { const item = contasPagar.find(p => p.id === id); if(item?.conciliado)return alert('Não é permitido estornar a baixa de um lançamento conciliado. Desfaça a conciliação primeiro.'); transId = item?.transferenciaId; }
+        else if (type === "receber") { const item = contasReceber.find(p => p.id === id); if(item?.conciliado)return alert('Não é permitido estornar a baixa de um lançamento conciliado. Desfaça a conciliação primeiro.'); transId = item?.transferenciaId; }
 
         const estornoUpdater = prev => prev.map(p => (p.id === id || (transId && p.transferenciaId === transId)) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null, conciliado: false } : p);
 
@@ -877,77 +834,17 @@
       const totalDebitosConcil = movimentacoesConciliacao.reduce((s, m) => s + m.valorDebito, 0);
       const totalCreditosConcil = movimentacoesConciliacao.reduce((s, m) => s + m.valorCredito, 0);
       const saldoFinalConcil = totalCreditosConcil - totalDebitosConcil;
+      const ofxFiltrado = useMemo(()=>ofxData.filter(o=>o.contaId===concilContaId&&(!o.data||(o.data>=concilDataIni&&o.data<=concilDataFim))).slice().sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.ordemImportacao||0)-(b.ordemImportacao||0)),[ofxData,concilContaId,concilDataIni,concilDataFim]);
+      const ofxSelecionadoUnico=ofxSelectedIds.length===1?ofxData.find(o=>o.id===ofxSelectedIds[0]):null;
 
-      function handleOfxUpload(e) {
-        if (!concilContaId) {
-          alert("Selecione a Conta Bancária no filtro antes de importar o arquivo OFX.");
-          if (ofxInputRef.current) ofxInputRef.current.value = "";
-          return;
-        }
+      function handleOfxUpload(e){ if(!concilContaId){alert('Selecione a Conta Bancária no filtro antes de importar o arquivo OFX.');return;} const conta=contasBancarias.find(c=>c.id===concilContaId),file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=evt=>{const parsed=parseOFX(evt.target.result);const banco=normalizeBankCode(conta?.bancoCode),num=normalizeAccountNumber(conta?.numero),bancos=[...new Set(parsed.transactions.map(t=>t.bancoCode).filter(Boolean))],contas=[...new Set(parsed.transactions.map(t=>normalizeAccountNumber(t.contaOfx)).filter(Boolean))];if(!parsed.transactions.length)return alert('O arquivo OFX não possui lançamentos válidos.');if(bancos.length&&banco&&!bancos.includes(banco))return alert(`Importação bloqueada: O banco do OFX (${bancos.join(', ')}) não corresponde ao banco da conta selecionada (${banco}).`);if(contas.length&&num&&!contas.some(n=>n===num||n.endsWith(num)||num.endsWith(n)))return alert(`Importação bloqueada: O número da conta no OFX (${contas.join(', ')}) não corresponde à conta selecionada (${conta.numero}).`);updateOfxData(prev=>[...prev,...parsed.transactions.map(t=>({...t,contaId:concilContaId,contaNome:conta.nome,bancoCode:t.bancoCode||banco}))]);setOfxSelectedIds([]);setSysSelectedIds([]);alert(`${parsed.transactions.length} lançamento(s) OFX importado(s) para a conta ${conta.nome}.`);};reader.readAsText(file);if(ofxInputRef.current)ofxInputRef.current.value='';}
+      function excluirOfxSelecionados(){if(!ofxSelectedIds.length)return alert('Selecione os lançamentos OFX que deseja excluir.');if(ofxData.some(o=>ofxSelectedIds.includes(o.id)&&o.conciliado))return alert('Não é possível excluir lançamentos OFX já conciliados.');if(!confirm(`Excluir ${ofxSelectedIds.length} lançamento(s) OFX selecionado(s)?`))return;updateOfxData(p=>p.filter(o=>!ofxSelectedIds.includes(o.id)));setOfxSelectedIds([]);}
+      function excluirTodosOfxConta(){const v=ofxData.filter(o=>o.contaId===concilContaId);if(!v.length)return alert('Não há lançamentos OFX para esta conta.');if(v.some(o=>o.conciliado))return alert('Não é possível excluir todos: existem lançamentos OFX já conciliados.');if(!confirm(`Excluir todos os ${v.length} lançamentos OFX desta conta?`))return;updateOfxData(p=>p.filter(o=>o.contaId!==concilContaId));setOfxSelectedIds([]);}
 
-        const contaSelecionada = contasBancarias.find(c => c.id === concilContaId);
-        const file = e.target.files[0];
-        if (!file) return;
+      function handleConciliarMatch(){if(!ofxSelectedIds.length||!sysSelectedIds.length)return alert('Selecione pelo menos um lançamento OFX e um lançamento do sistema.');const os=ofxData.filter(o=>ofxSelectedIds.includes(o.id)&&o.contaId===concilContaId&&!o.conciliado),ss=movimentacoesConciliacao.filter(m=>sysSelectedIds.includes(m.id)&&!m.conciliado);if(!os.length||!ss.length)return alert('Selecione lançamentos ainda não conciliados.');const osig=new Set(os.map(o=>o.valor<0?'debito':'credito')),ssig=new Set(ss.map(m=>m.tipo==='Débito'?'debito':'credito'));if(osig.size!==1||ssig.size!==1||[...osig][0]!==[...ssig][0])return alert('Os lançamentos selecionados não são do mesmo valor.');const a=os.reduce((s,o)=>s+Math.round(Math.abs(o.valor)*100),0),b=ss.reduce((s,m)=>s+Math.round((m.valorDebito||m.valorCredito||0)*100),0);if(a!==b)return alert('Os lançamentos selecionados não são do mesmo valor.');updateOfxData(p=>p.map(o=>ofxSelectedIds.includes(o.id)?{...o,conciliado:true}:o));const pi=ss.filter(m=>m.tipoOrigem==='pagar').map(m=>m.itemRef.id),ri=ss.filter(m=>m.tipoOrigem==='receber').map(m=>m.itemRef.id),fi=ss.filter(m=>m.tipoOrigem==='fatura');if(pi.length)updateContasPagar(p=>p.map(x=>pi.includes(x.id)?{...x,conciliado:true}:x));if(ri.length)updateContasReceber(p=>p.map(x=>ri.includes(x.id)?{...x,conciliado:true}:x));if(fi.length)updateFaturasBaixadas(p=>{const n={...p};fi.forEach(m=>n[m.competenciaRef]={...n[m.competenciaRef],conciliado:true});return n;});setOfxSelectedIds([]);setSysSelectedIds([]);alert('Conciliação realizada com sucesso.');}
 
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          const parsed = parseOFX(evt.target.result);
-          
-          const sysBancoCode = contaSelecionada.bancoCode;
-          const sysContaNum = (contaSelecionada.numero || "").replace(/\D/g, '');
-          
-          const ofxBancoCode = parsed.ofxBankId;
-          const ofxContaNum = (parsed.ofxAcctId || "").replace(/\D/g, '');
-
-          if (ofxBancoCode && sysBancoCode && ofxBancoCode !== sysBancoCode) {
-            alert(`Importação bloqueada: O código do banco no arquivo OFX (${ofxBancoCode}) não corresponde ao da conta selecionada (${sysBancoCode}).`);
-            if (ofxInputRef.current) ofxInputRef.current.value = "";
-            return;
-          }
-
-          if (ofxContaNum && sysContaNum) {
-            if (!ofxContaNum.includes(sysContaNum) && !sysContaNum.includes(ofxContaNum)) {
-              alert(`Importação bloqueada: O número da conta no arquivo OFX (${parsed.ofxAcctId}) não corresponde à conta selecionada (${contaSelecionada.numero}).`);
-              if (ofxInputRef.current) ofxInputRef.current.value = "";
-              return;
-            }
-          }
-
-          updateOfxData(parsed.transactions);
-          setOfxSelectedIds([]);
-          setSysSelectedIds([]);
-        };
-        
-        reader.readAsText(file);
-        if (ofxInputRef.current) ofxInputRef.current.value = "";
-      }
-
-      function handleConciliarMatch() {
-        if (ofxSelectedIds.length === 0 && sysSelectedIds.length === 0) return alert("Selecione os itens para conciliar.");
-        
-        if (ofxSelectedIds.length > 0) {
-          updateOfxData(prev => prev.map(o => ofxSelectedIds.includes(o.id) ? { ...o, conciliado: true } : o));
-        }
-
-        if (sysSelectedIds.length > 0) {
-          sysSelectedIds.forEach(sysId => {
-            const mov = movimentacoesConciliacao.find(m => m.id === sysId);
-            if (mov) {
-              if (mov.tipoOrigem === 'pagar') {
-                updateContasPagar(prev => prev.map(p => p.id === mov.itemRef.id ? { ...p, conciliado: true } : p));
-              } else if (mov.tipoOrigem === 'receber') {
-                updateContasReceber(prev => prev.map(p => p.id === mov.itemRef.id ? { ...p, conciliado: true } : p));
-              } else if (mov.tipoOrigem === 'fatura') {
-                updateFaturasBaixadas(prev => ({ ...prev, [mov.competenciaRef]: { ...prev[mov.competenciaRef], conciliado: true } }));
-              }
-            }
-          });
-        }
-        
-        setOfxSelectedIds([]);
-        setSysSelectedIds([]);
-      }
-
+      function toggleSelectAllOfx(){const v=ofxFiltrado.filter(o=>!o.conciliado);setOfxSelectedIds(ofxSelectedIds.length===v.length?[]:v.map(o=>o.id));}
+      function toggleSelectAllSys(){const v=movimentacoesConciliacao.filter(m=>!m.conciliado);setSysSelectedIds(sysSelectedIds.length===v.length?[]:v.map(m=>m.id));}
       function toggleOfxSelect(id) { setOfxSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
       function toggleSysSelect(id) { setSysSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
 
@@ -958,7 +855,7 @@
           const strD = `${ano}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`; let deb = 0; let cred = 0;
           if (concilContaId) {
             contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa === strD) deb += p.recorrente ? (p.valorParcela||p.total) : (p.valorParcela || p.total); });
-            contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += r.recorrente ? (p.valorParcela||p.total) : (r.valorParcela || r.total); });
+            contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += r.recorrente ? (r.valorParcela||r.total) : (r.valorParcela || r.total); });
             Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
               if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa === strD) {
                 const values = purchases.map(p => { 
@@ -1447,7 +1344,7 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
               h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Conciliação Bancária"),
               h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
-                h('button', { type: 'button', className: 'primary', onClick: () => { setLrTipo('despesa'); setLrDescricao(''); setLrObservacao(''); setLrData(currentDate()); setLrValor(''); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrIsTransferencia(false); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
+                h('button', { type: 'button', className: 'primary', onClick: () => { setLrTipo('despesa'); const o=ofxSelecionadoUnico; setLrDescricao(o?.descricao||''); setLrObservacao(''); setLrData(o?.data||currentDate()); setLrValor(o?Math.abs(o.valor).toFixed(2).replace('.',','):''); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrIsTransferencia(false); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportConciliacaoExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir")
               )
@@ -1494,9 +1391,9 @@
                 h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
                   h('input', { type: 'file', accept: '.ofx', ref: ofxInputRef, style: { display: 'none' }, onChange: handleOfxUpload }),
                   h('button', { type: 'button', className: 'action-btn', onClick: () => ofxInputRef.current && ofxInputRef.current.click() }, "📁 Importar arquivo .OFX"),
-                  ofxData.length > 0 && h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `${ofxData.length} registros importados.`)
+                  ofxFiltrado.length > 0 && h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `${ofxFiltrado.length} registros da conta selecionada.`)
                 ),
-                h('button', { type: 'button', className: 'primary', onClick: handleConciliarMatch, disabled: ofxSelectedIds.length === 0 && sysSelectedIds.length === 0 }, h(CheckCircle, {size: 16}), " Confirmar Conciliação")
+                h('button', { type: 'button', className: 'action-btn', onClick: toggleSelectAllOfx }, ofxSelectedIds.length === ofxFiltrado.filter(o=>!o.conciliado).length && ofxFiltrado.filter(o=>!o.conciliado).length>0 ? "☐ Desmarcar todos" : "☑ Selecionar todos"), h('button', { type: 'button', className: 'danger', onClick: excluirOfxSelecionados, disabled: !ofxSelectedIds.length }, h(Trash2,{size:14}), " Excluir selecionados"), h('button', { type: 'button', className: 'danger', onClick: excluirTodosOfxConta, disabled: !ofxFiltrado.length }, "Excluir OFX da conta"), h('button', { type: 'button', className: 'primary', onClick: handleConciliarMatch, disabled: !ofxSelectedIds.length || !sysSelectedIds.length }, h(CheckCircle, {size: 16}), " Confirmar Conciliação")
               ),
               
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' } },
@@ -1504,10 +1401,10 @@
                 h('div', { style: { border: '1px solid var(--line)', borderRadius: '6px', background: '#fff' } },
                    h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0' } }, "Extrato OFX (Banco)"),
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
-                      ofxData.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhum arquivo importado.") :
+                      ofxFiltrado.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhum arquivo importado.") :
                       h('table', null, 
                         h('thead', null, h('tr', null, h('th', { style: { width: 30 } }), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"))),
-                        h('tbody', null, ofxData.map(o => h('tr', { key: o.id, style: { opacity: o.conciliado ? 0.5 : 1 } }, 
+                        h('tbody', null, ofxFiltrado.map(o => h('tr', { key: o.id, style: { opacity: o.conciliado ? 0.5 : 1 } }, 
                           h('td', null, o.conciliado ? h(CheckCircle, { color: 'var(--green)' }) : h('input', { type: 'checkbox', checked: ofxSelectedIds.includes(o.id), onChange: () => toggleOfxSelect(o.id) })),
                           h('td', null, formatDateBR(o.data)),
                           h('td', null, o.descricao),
@@ -1518,7 +1415,7 @@
                 ),
 
                 h('div', { style: { border: '1px solid var(--line)', borderRadius: '6px', background: '#fff' } },
-                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0' } }, "Lançamentos no Sistema"),
+                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, h('span', null, 'Lançamentos no Sistema'), h('button', { type: 'button', className: 'action-btn', onClick: toggleSelectAllSys }, sysSelectedIds.length === movimentacoesConciliacao.filter(m=>!m.conciliado).length && movimentacoesConciliacao.filter(m=>!m.conciliado).length > 0 ? '☐ Desmarcar todos' : '☑ Selecionar todos')),
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       movimentacoesConciliacao.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma movimentação baixada neste período.") :
                       h('table', null, 
@@ -1763,7 +1660,6 @@
       );
     }
 
-    ReactDOM.createRender = ReactDOM.createRoot ? (node) => ReactDOM.createRoot(node) : null;
     const container = document.getElementById('root');
     if (ReactDOM.createRoot) {
       ReactDOM.createRoot(container).render(h(FaturaApp));
