@@ -153,6 +153,20 @@
       const [concilTab, setConcilTab] = useState("extrato");
       const [concilContaId, setConcilContaId] = useState("");
       const mesmaContaOfx = (a, b) => String(a ?? '') === String(b ?? '');
+      function normalizarIdsOfx(lista) {
+        const usados = new Set();
+        return (Array.isArray(lista) ? lista : []).map((o, idx) => {
+          let id = o?.id != null && String(o.id).trim() ? String(o.id) : `ofx-legado-${Date.now()}-${idx}-${uid()}`;
+          if (usados.has(id)) {
+            let n = 2;
+            const base = id;
+            while (usados.has(`${base}-${n}`)) n++;
+            id = `${base}-${n}`;
+          }
+          usados.add(id);
+          return { ...o, id };
+        });
+      }
       const [concilDataIni, setConcilDataIni] = useState(`${currentMonth()}-01`);
       const [concilDataFim, setConcilDataFim] = useState(currentDate());
       // Datas digitadas pelo usuário ficam separadas das datas efetivamente consultadas.
@@ -294,7 +308,9 @@
           setPurchases(data.purchases || []); setContasPagar(data.contas_pagar || []); setContasReceber(data.contas_receber || []);
           setCartoes(data.cartoes || []); setContasBancarias(data.contas_bancarias || []); setCategorias(loadedCats);
           setDeparaList(data.depara || []); setFaturasFechadas(data.faturas_fechadas || {}); setFaturasBaixadas(data.faturas_baixadas || {});
-          setDiasFechados(data.dias_fechados || {}); setMesesFechados(data.meses_fechados || {}); setOfxData(data.ofx_dados || []);
+          setDiasFechados(data.dias_fechados || {}); setMesesFechados(data.meses_fechados || {});
+          const ofxCarregado = normalizarIdsOfx(data.ofx_dados || []);
+          setOfxData(ofxCarregado); setOfxSelectedIds([]); setSysSelectedIds([]);
         } else {
           await supabaseClient.from('app_data').upsert({
             user_id: userId, purchases: [], contas_pagar: [], contas_receber: [], cartoes: [], contas_bancarias: [],
@@ -870,12 +886,15 @@
       const ofxSelecionadoUnico=ofxSelectedIds.length===1?ofxData.find(o=>o.id===ofxSelectedIds[0]&&mesmaContaOfx(o.contaId,concilContaId)):null;
 
       function handleOfxUpload(e){ if(!concilContaId){alert('Selecione a Conta Bancária no filtro antes de importar o arquivo OFX.');return;} const conta=contasBancarias.find(c=>c.id===concilContaId),file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=evt=>{const parsed=parseOFX(evt.target.result);const banco=normalizeBankCode(conta?.bancoCode),num=normalizeAccountNumber(conta?.numero),bancos=[...new Set(parsed.transactions.map(t=>t.bancoCode).filter(Boolean))],contas=[...new Set(parsed.transactions.map(t=>normalizeAccountNumber(t.contaOfx)).filter(Boolean))];if(!parsed.transactions.length)return alert('O arquivo OFX não possui lançamentos válidos.');if(bancos.length&&banco&&!bancos.includes(banco))return alert(`Importação bloqueada: O banco do OFX (${bancos.join(', ')}) não corresponde ao banco da conta selecionada (${banco}).`);if(contas.length&&num&&!contas.some(n=>n===num||n.endsWith(num)||num.endsWith(n)))return alert(`Importação bloqueada: O número da conta no OFX (${contas.join(', ')}) não corresponde à conta selecionada (${conta.numero}).`);updateOfxData(prev=>[...prev,...parsed.transactions.map(t=>({...t,contaId:String(concilContaId),contaNome:conta.nome,bancoCode:t.bancoCode||banco}))]);setOfxSelectedIds([]);setSysSelectedIds([]);alert(`${parsed.transactions.length} lançamento(s) OFX importado(s) para a conta ${conta.nome}.`);};reader.readAsText(file);if(ofxInputRef.current)ofxInputRef.current.value='';}
-      function excluirOfxSelecionados(){if(!ofxSelectedIds.length)return alert('Selecione os lançamentos OFX que deseja excluir.');if(ofxData.some(o=>ofxSelectedIds.includes(o.id)&&mesmaContaOfx(o.contaId,concilContaId)&&o.conciliado))return alert('Não é possível excluir lançamentos OFX já conciliados.');if(!confirm(`Excluir ${ofxSelectedIds.length} lançamento(s) OFX selecionado(s)?`))return;updateOfxData(p=>p.filter(o=>!ofxSelectedIds.includes(o.id)));setOfxSelectedIds([]);}
-      function excluirTodosOfxConta(){const v=ofxData.filter(o=>mesmaContaOfx(o.contaId,concilContaId));if(!v.length)return alert('Não há lançamentos OFX para esta conta.');if(v.some(o=>o.conciliado))return alert('Não é possível excluir todos: existem lançamentos OFX já conciliados.');if(!confirm(`Excluir todos os ${v.length} lançamentos OFX desta conta?`))return;updateOfxData(p=>p.filter(o=>!mesmaContaOfx(o.contaId,concilContaId)));setOfxSelectedIds([]);}
 
       function handleConciliarMatch(){if(!ofxSelectedIds.length||!sysSelectedIds.length)return alert('Selecione pelo menos um lançamento OFX e um lançamento do sistema.');const os=ofxData.filter(o=>ofxSelectedIds.includes(o.id)&&mesmaContaOfx(o.contaId,concilContaId)&&!o.conciliado),ss=movimentacoesConciliacao.filter(m=>sysSelectedIds.includes(m.id)&&!m.conciliado);if(!os.length||!ss.length)return alert('Selecione lançamentos ainda não conciliados.');const osig=new Set(os.map(o=>o.valor<0?'debito':'credito')),ssig=new Set(ss.map(m=>m.tipo==='Débito'?'debito':'credito'));if(osig.size!==1||ssig.size!==1||[...osig][0]!==[...ssig][0])return alert('Os lançamentos selecionados não são do mesmo valor.');const a=os.reduce((s,o)=>s+Math.round(Math.abs(o.valor)*100),0),b=ss.reduce((s,m)=>s+Math.round((m.valorDebito||m.valorCredito||0)*100),0);if(a!==b)return alert('Os lançamentos selecionados não são do mesmo valor.');updateOfxData(p=>p.map(o=>ofxSelectedIds.includes(o.id)&&mesmaContaOfx(o.contaId,concilContaId)?{...o,conciliado:true}:o));const pi=ss.filter(m=>m.tipoOrigem==='pagar').map(m=>m.itemRef.id),ri=ss.filter(m=>m.tipoOrigem==='receber').map(m=>m.itemRef.id),fi=ss.filter(m=>m.tipoOrigem==='fatura');if(pi.length)updateContasPagar(p=>p.map(x=>pi.includes(x.id)?{...x,conciliado:true}:x));if(ri.length)updateContasReceber(p=>p.map(x=>ri.includes(x.id)?{...x,conciliado:true}:x));if(fi.length)updateFaturasBaixadas(p=>{const n={...p};fi.forEach(m=>n[m.competenciaRef]={...n[m.competenciaRef],conciliado:true});return n;});setOfxSelectedIds([]);setSysSelectedIds([]);alert('Conciliação realizada com sucesso.');}
 
-      function toggleSelectAllOfx(){const v=ofxFiltrado.filter(o=>!o.conciliado);setOfxSelectedIds(ofxSelectedIds.length===v.length?[]:v.map(o=>o.id));}
+      function toggleSelectAllOfx(){
+        const v=ofxFiltrado.filter(o=>!o.conciliado);
+        const ids=v.map(o=>o.id);
+        const todosSelecionados=ids.length>0&&ids.every(id=>ofxSelectedIds.includes(id));
+        setOfxSelectedIds(todosSelecionados?[]:ids);
+      }
       function toggleSelectAllSys(){const v=movimentacoesConciliacao.filter(m=>!m.conciliado);setSysSelectedIds(sysSelectedIds.length===v.length?[]:v.map(m=>m.id));}
       function toggleOfxSelect(id) { setOfxSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
       function toggleSysSelect(id) { setSysSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
@@ -1387,7 +1406,7 @@
               h('button', { className: concilTab === "ofx" ? "active" : "", onClick: () => setConcilTab("ofx") }, "Conciliação OFX")
             ),
 
-            h('div', { style: { display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 20, flexWrap: 'wrap' } }, h('div', { className: 'field' }, h('label', null, "Conta Bancária *"), h('select', { value: concilContaId, onChange: e => setConcilContaId(e.target.value) }, h('option', { value: "" }, "Selecione a conta..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))), h('div', { className: 'field' }, h('label', null, "Data Inicial"), h('input', { type: 'date', value: concilDataIni, onChange: e => setConcilDataIni(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Data Final"), h('input', { type: 'date', value: concilDataFim, onChange: e => setConcilDataFim(e.target.value) })), h('button', { type: 'button', className: 'primary', style: { height: 38 }, onClick: () => { if (!concilContaId) { alert('Selecione a Conta Bancária no filtro antes de consultar.'); return; } if (!concilDataIni || !concilDataFim) { alert('Informe a Data Inicial e a Data Final.'); return; } if (concilDataIni > concilDataFim) { alert('A Data Inicial não pode ser maior que a Data Final.'); return; } setConcilDataIniAplicada(concilDataIni); setConcilDataFimAplicada(concilDataFim); setConcilExibido(true); setOfxSelectedIds([]); setSysSelectedIds([]); } }, "Filtrar Período")),
+            h('div', { style: { display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 20, flexWrap: 'wrap' } }, h('div', { className: 'field' }, h('label', null, "Conta Bancária *"), h('select', { value: concilContaId, onChange: e => { setConcilContaId(e.target.value); setOfxSelectedIds([]); setSysSelectedIds([]); } }, h('option', { value: "" }, "Selecione a conta..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))), h('div', { className: 'field' }, h('label', null, "Data Inicial"), h('input', { type: 'date', value: concilDataIni, onChange: e => setConcilDataIni(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Data Final"), h('input', { type: 'date', value: concilDataFim, onChange: e => setConcilDataFim(e.target.value) })), h('button', { type: 'button', className: 'primary', style: { height: 38 }, onClick: () => { if (!concilContaId) { alert('Selecione a Conta Bancária no filtro antes de consultar.'); return; } if (!concilDataIni || !concilDataFim) { alert('Informe a Data Inicial e a Data Final.'); return; } if (concilDataIni > concilDataFim) { alert('A Data Inicial não pode ser maior que a Data Final.'); return; } setConcilDataIniAplicada(concilDataIni); setConcilDataFimAplicada(concilDataFim); setConcilExibido(true); setOfxSelectedIds([]); setSysSelectedIds([]); } }, "Filtrar Período")),
 
             concilExibido && concilTab === "extrato" && h(React.Fragment, null,
               h('div', { style: { display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' } },
@@ -1424,8 +1443,7 @@
                   h('input', { type: 'file', accept: '.ofx', ref: ofxInputRef, style: { display: 'none' }, onChange: handleOfxUpload }),
                   h('button', { type: 'button', className: 'action-btn', onClick: () => ofxInputRef.current && ofxInputRef.current.click() }, "📁 Importar arquivo .OFX"),
                   ofxFiltrado.length > 0 && h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `${ofxFiltrado.length} registros da conta selecionada.`)
-                ),
-                h('button', { type: 'button', className: 'danger', onClick: excluirOfxSelecionados, disabled: !ofxSelectedIds.length }, h(Trash2,{size:14}), " Excluir selecionados"), h('button', { type: 'button', className: 'danger', onClick: excluirTodosOfxConta, disabled: !ofxFiltrado.length }, "Excluir OFX da conta"), h('button', { type: 'button', className: 'primary', onClick: handleConciliarMatch, disabled: !ofxSelectedIds.length || !sysSelectedIds.length }, h(CheckCircle, {size: 16}), " Confirmar Conciliação")
+                ), h('button', { type: 'button', className: 'primary', onClick: handleConciliarMatch, disabled: !ofxSelectedIds.length || !sysSelectedIds.length }, h(CheckCircle, {size: 16}), " Confirmar Conciliação")
               ),
               
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' } },
