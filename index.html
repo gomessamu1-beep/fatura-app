@@ -314,7 +314,7 @@
           const temTabulacao = linhaOriginal.startsWith("\t") || linhaOriginal.startsWith("    "); const limpa = linhaOriginal.trim(); if (!limpa) return;
           const ehSub = temTabulacao || limpa.startsWith("-") || limpa.startsWith("•"); const nomeItem = limpa.replace(/^[-•]\s*/, "").trim();
           if (!ehSub) { let catExistente = novasCategorias.find(c => c.tipo === categoriaTipoTab && c.nome.toLowerCase() === nomeItem.toLowerCase()); if (!catExistente) { catExistente = { id: uid(), tipo: categoriaTipoTab, nome: nomeItem, cor: CARD_COLORS[novasCategorias.length % CARD_COLORS.length], isTransferencia: false, subcategorias: [] }; novasCategorias.push(catExistente); qtdCatAdicionadas++; } catAtual = catExistente; } 
-          else { if (catAtual) { let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: item => item }); qtdSubAdicionadas++; } } else { const catsDoTipo = novasCategorias.filter(c => c.tipo === categoriaTipoTab); if (catsDoTipo.length > 0) { catAtual = catsDoTipo[catsDoTipo.length - 1]; let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } } }
+          else { if (catAtual) { let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } else { const catsDoTipo = novasCategorias.filter(c => c.tipo === categoriaTipoTab); if (catsDoTipo.length > 0) { catAtual = catsDoTipo[catsDoTipo.length - 1]; let subExistente = catAtual.subcategorias.find(s => s.nome.toLowerCase() === nomeItem.toLowerCase()); if (!subExistente) { catAtual.subcategorias.push({ id: uid(), nome: nomeItem }); qtdSubAdicionadas++; } } } }
         });
         updateCategorias(novasCategorias); setTxtCategoriasContent(""); alert(`Concluído!\n- ${qtdCatAdicionadas} categorias\n- ${qtdSubAdicionadas} subcategorias`);
       }
@@ -472,7 +472,7 @@
             }
           }
         });
-        lista.sort((a, b) => a.data.localeCompare(b.data)); let saldoAcumulado = 0; return lista.map(item => { saldoAcumulado += (item.valorCredito - item.valorDebito); return { ...item, saldo: acumulado }; });
+        lista.sort((a, b) => a.data.localeCompare(b.data)); let saldoAcumulado = 0; return lista.map(item => { saldoAcumulado += (item.valorCredito - item.valorDebito); return { ...item, saldo: saldoAcumulado }; });
       }, [concilExibido, concilContaId, concilDataIni, concilDataFim, contasPagar, contasReceber, faturasBaixadas, purchases]);
 
       const resumoDiarioConcil = useMemo(() => {
