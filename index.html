@@ -154,6 +154,10 @@
       const [concilContaId, setConcilContaId] = useState("");
       const [concilDataIni, setConcilDataIni] = useState(`${currentMonth()}-01`);
       const [concilDataFim, setConcilDataFim] = useState(currentDate());
+      // Datas digitadas pelo usuário ficam separadas das datas efetivamente consultadas.
+      // Assim, alterar o calendário não atualiza os lançamentos até clicar em Filtrar Período.
+      const [concilDataIniAplicada, setConcilDataIniAplicada] = useState(`${currentMonth()}-01`);
+      const [concilDataFimAplicada, setConcilDataFimAplicada] = useState(currentDate());
       const [concilExibido, setConcilExibido] = useState(false);
       const [concilCalMes, setConcilCalMes] = useState(currentMonth());
       const [calendarioExpandido, setCalendarioExpandido] = useState(false);
@@ -699,9 +703,27 @@
         const total = parseValorInput(lrValor);
         const cat = getCategoria(lrCategoriaId);
         const exigeSub = cat && !cat.isTransferencia;
+        const ofxOrigem = ofxSelecionadoUnico;
+        const veioDoOfx = !!ofxOrigem;
 
         if (!lrDescricao.trim() || !Number.isFinite(total) || total <= 0 || !lrData || !lrContaOrigem || !lrCategoriaId || (exigeSub && !lrSubcategoriaId)) {
           return setLrError("Preencha todos os campos obrigatórios corretamente.");
+        }
+
+        if (veioDoOfx && ofxOrigem.contaId !== concilContaId) {
+          return setLrError("O lançamento OFX selecionado não pertence à conta bancária atual.");
+        }
+
+        if (veioDoOfx) {
+          const valorOfxCentavos = Math.round(Math.abs(Number(ofxOrigem.valor || 0)) * 100);
+          const valorLancamentoCentavos = Math.round(Math.abs(total) * 100);
+          const direcaoOfx = Number(ofxOrigem.valor || 0) < 0 ? 'despesa' : 'receita';
+          if (valorOfxCentavos !== valorLancamentoCentavos || lrTipo !== direcaoOfx) {
+            return setLrError("O valor e o tipo do lançamento devem ser exatamente iguais ao lançamento OFX selecionado.");
+          }
+          if (ofxOrigem.conciliado) {
+            return setLrError("O lançamento OFX selecionado já está conciliado.");
+          }
         }
 
         if (lrIsTransferencia && !lrContaDestino) {
@@ -719,13 +741,14 @@
         }
 
         const transId = lrIsTransferencia ? uid() : null;
+        const conciliadoAutomaticamente = veioDoOfx;
 
         if (lrIsTransferencia) {
           const debitoEntry = {
             id: uid(), descricao: `Transferência enviada: ${lrDescricao.trim()}`, observacao: lrObservacao.trim(), total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
             inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
             subcategoriaId: null, status: "Baixado", criadoEm: Date.now(),
-            transferenciaId: transId, isLancamentoDireto: true, bancoBaixaId: lrContaOrigem, dataBaixa: lrData, conciliado: false
+            transferenciaId: transId, isLancamentoDireto: true, bancoBaixaId: lrContaOrigem, dataBaixa: lrData, conciliado: conciliadoAutomaticamente
           };
           
           const creditoEntry = {
@@ -742,11 +765,19 @@
             id: uid(), descricao: lrDescricao.trim(), observacao: lrObservacao.trim(), total, dataCompra: lrData, parcelas: 1, parcelaInicial: 1,
             inicio: faturaMes, recorrente: false, cartaoId: null, categoriaId: lrCategoriaId,
             subcategoriaId: lrSubcategoriaId, status: "Baixado", criadoEm: Date.now(),
-            transferenciaId: null, isLancamentoDireto: true, bancoBaixaId: lrContaOrigem, dataBaixa: lrData, conciliado: false
+            transferenciaId: null, isLancamentoDireto: true, bancoBaixaId: lrContaOrigem, dataBaixa: lrData, conciliado: conciliadoAutomaticamente
           };
 
           if (lrTipo === 'despesa') updateContasPagar(prev => [...prev, entry]);
           else updateContasReceber(prev => [...prev, entry]);
+        }
+
+        // Quando o lançamento foi criado a partir de um OFX, a validação já ocorreu
+        // no próprio lançamento. Portanto, o OFX também fica conciliado automaticamente.
+        if (veioDoOfx) {
+          updateOfxData(prev => prev.map(o => o.id === ofxOrigem.id ? { ...o, conciliado: true } : o));
+          setOfxSelectedIds([]);
+          setSysSelectedIds([]);
         }
         
         setLrModalOpen(false);
@@ -806,11 +837,11 @@
       // Reconciliation OFX logic
       const movimentacoesConciliacao = useMemo(() => {
         if (!concilExibido || !concilContaId) return []; const lista = [];
-        contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa) { if (p.dataBaixa >= concilDataIni && p.dataBaixa <= concilDataFim) lista.push({ id: p.id, tipoOrigem: 'pagar', itemRef: p, data: p.dataBaixa, descricao: p.descricao, observacao: p.observacao, tipo: "Débito", valorDebito: p.recorrente ? p.valorParcela : (p.valorParcela || p.total), valorCredito: 0, conciliado: !!p.conciliado }); } });
-        contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa) { if (r.dataBaixa >= concilDataIni && r.dataBaixa <= concilDataFim) lista.push({ id: r.id, tipoOrigem: 'receber', itemRef: r, data: r.dataBaixa, descricao: r.descricao, observacao: r.observacao, tipo: "Crédito", valorDebito: 0, valorCredito: r.recorrente ? r.valorParcela : (r.valorParcela || r.total), conciliado: !!r.conciliado }); } });
+        contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa) { if (p.dataBaixa >= concilDataIniAplicada && p.dataBaixa <= concilDataFimAplicada) lista.push({ id: p.id, tipoOrigem: 'pagar', itemRef: p, data: p.dataBaixa, descricao: p.descricao, observacao: p.observacao, tipo: "Débito", valorDebito: p.recorrente ? p.valorParcela : (p.valorParcela || p.total), valorCredito: 0, conciliado: !!p.conciliado }); } });
+        contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa) { if (r.dataBaixa >= concilDataIniAplicada && r.dataBaixa <= concilDataFimAplicada) lista.push({ id: r.id, tipoOrigem: 'receber', itemRef: r, data: r.dataBaixa, descricao: r.descricao, observacao: r.observacao, tipo: "Crédito", valorDebito: 0, valorCredito: r.recorrente ? r.valorParcela : (r.valorParcela || r.total), conciliado: !!r.conciliado }); } });
         Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
           if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa) {
-            if (baixa.dataBaixa >= concilDataIni && baixa.dataBaixa <= concilDataFim) {
+            if (baixa.dataBaixa >= concilDataIniAplicada && baixa.dataBaixa <= concilDataFimAplicada) {
               const values = purchases.map(p => { 
                 const idx = monthDiff(p.inicio, comp); if (idx < 0) return 0; 
                 if (p.canceladoEm && comp >= p.canceladoEm) return 0;
@@ -824,7 +855,7 @@
           }
         });
         lista.sort((a, b) => a.data.localeCompare(b.data)); let saldoAcumulado = 0; return lista.map(item => { saldoAcumulado += (item.valorCredito - item.valorDebito); return { ...item, saldo: saldoAcumulado }; });
-      }, [concilExibido, concilContaId, concilDataIni, concilDataFim, contasPagar, contasReceber, faturasBaixadas, purchases]);
+      }, [concilExibido, concilContaId, concilDataIniAplicada, concilDataFimAplicada, contasPagar, contasReceber, faturasBaixadas, purchases]);
 
       const resumoDiarioConcil = useMemo(() => {
         const grupos = {}; movimentacoesConciliacao.forEach(m => { if (!grupos[m.data]) grupos[m.data] = { data: m.data, debitos: 0, creditos: 0, itens: [] }; grupos[m.data].debitos += m.valorDebito; grupos[m.data].creditos += m.valorCredito; grupos[m.data].itens.push(m); });
@@ -834,7 +865,7 @@
       const totalDebitosConcil = movimentacoesConciliacao.reduce((s, m) => s + m.valorDebito, 0);
       const totalCreditosConcil = movimentacoesConciliacao.reduce((s, m) => s + m.valorCredito, 0);
       const saldoFinalConcil = totalCreditosConcil - totalDebitosConcil;
-      const ofxFiltrado = useMemo(()=>ofxData.filter(o=>o.contaId===concilContaId&&(!o.data||(o.data>=concilDataIni&&o.data<=concilDataFim))).slice().sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.ordemImportacao||0)-(b.ordemImportacao||0)),[ofxData,concilContaId,concilDataIni,concilDataFim]);
+      const ofxFiltrado = useMemo(()=>ofxData.filter(o=>o.contaId===concilContaId&&(!o.data||(o.data>=concilDataIniAplicada&&o.data<=concilDataFimAplicada))).slice().sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.ordemImportacao||0)-(b.ordemImportacao||0)),[ofxData,concilContaId,concilDataIniAplicada,concilDataFimAplicada]);
       const ofxSelecionadoUnico=ofxSelectedIds.length===1?ofxData.find(o=>o.id===ofxSelectedIds[0]):null;
 
       function handleOfxUpload(e){ if(!concilContaId){alert('Selecione a Conta Bancária no filtro antes de importar o arquivo OFX.');return;} const conta=contasBancarias.find(c=>c.id===concilContaId),file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=evt=>{const parsed=parseOFX(evt.target.result);const banco=normalizeBankCode(conta?.bancoCode),num=normalizeAccountNumber(conta?.numero),bancos=[...new Set(parsed.transactions.map(t=>t.bancoCode).filter(Boolean))],contas=[...new Set(parsed.transactions.map(t=>normalizeAccountNumber(t.contaOfx)).filter(Boolean))];if(!parsed.transactions.length)return alert('O arquivo OFX não possui lançamentos válidos.');if(bancos.length&&banco&&!bancos.includes(banco))return alert(`Importação bloqueada: O banco do OFX (${bancos.join(', ')}) não corresponde ao banco da conta selecionada (${banco}).`);if(contas.length&&num&&!contas.some(n=>n===num||n.endsWith(num)||num.endsWith(n)))return alert(`Importação bloqueada: O número da conta no OFX (${contas.join(', ')}) não corresponde à conta selecionada (${conta.numero}).`);updateOfxData(prev=>[...prev,...parsed.transactions.map(t=>({...t,contaId:concilContaId,contaNome:conta.nome,bancoCode:t.bancoCode||banco}))]);setOfxSelectedIds([]);setSysSelectedIds([]);alert(`${parsed.transactions.length} lançamento(s) OFX importado(s) para a conta ${conta.nome}.`);};reader.readAsText(file);if(ofxInputRef.current)ofxInputRef.current.value='';}
@@ -1344,7 +1375,7 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
               h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Conciliação Bancária"),
               h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
-                h('button', { type: 'button', className: 'primary', onClick: () => { setLrTipo('despesa'); const o=ofxSelecionadoUnico; setLrDescricao(o?.descricao||''); setLrObservacao(''); setLrData(o?.data||currentDate()); setLrValor(o?Math.abs(o.valor).toFixed(2).replace('.',','):''); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrIsTransferencia(false); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
+                h('button', { type: 'button', className: 'primary', disabled: ofxSelectedIds.length !== 1, title: ofxSelectedIds.length === 0 ? 'Selecione exatamente um lançamento OFX.' : ofxSelectedIds.length > 1 ? 'Selecione apenas um lançamento OFX.' : 'Criar lançamento a partir do OFX', onClick: () => { if (ofxSelectedIds.length !== 1) { alert('Selecione apenas um lançamento OFX para criar o lançamento.'); return; } setLrTipo('despesa'); const o=ofxSelecionadoUnico; if (!o) { alert('O lançamento OFX selecionado não foi encontrado.'); return; } setLrDescricao(o.descricao||''); setLrObservacao(''); setLrData(o.data||currentDate()); setLrValor(Math.abs(o.valor).toFixed(2).replace('.',',')); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrIsTransferencia(false); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportConciliacaoExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir")
               )
@@ -1355,7 +1386,7 @@
               h('button', { className: concilTab === "ofx" ? "active" : "", onClick: () => setConcilTab("ofx") }, "Conciliação OFX")
             ),
 
-            h('div', { style: { display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 20, flexWrap: 'wrap' } }, h('div', { className: 'field' }, h('label', null, "Conta Bancária *"), h('select', { value: concilContaId, onChange: e => setConcilContaId(e.target.value) }, h('option', { value: "" }, "Selecione a conta..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))), h('div', { className: 'field' }, h('label', null, "Data Inicial"), h('input', { type: 'date', value: concilDataIni, onChange: e => setConcilDataIni(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Data Final"), h('input', { type: 'date', value: concilDataFim, onChange: e => setConcilDataFim(e.target.value) })), h('button', { type: 'button', className: 'primary', style: { height: 38 }, onClick: () => setConcilExibido(true) }, "Filtrar Período")),
+            h('div', { style: { display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr auto', gap: 10, alignItems: 'end', marginBottom: 20, flexWrap: 'wrap' } }, h('div', { className: 'field' }, h('label', null, "Conta Bancária *"), h('select', { value: concilContaId, onChange: e => setConcilContaId(e.target.value) }, h('option', { value: "" }, "Selecione a conta..."), contasBancarias.map(c => h('option', { key: c.id, value: c.id }, c.nome)))), h('div', { className: 'field' }, h('label', null, "Data Inicial"), h('input', { type: 'date', value: concilDataIni, onChange: e => setConcilDataIni(e.target.value) })), h('div', { className: 'field' }, h('label', null, "Data Final"), h('input', { type: 'date', value: concilDataFim, onChange: e => setConcilDataFim(e.target.value) })), h('button', { type: 'button', className: 'primary', style: { height: 38 }, onClick: () => { if (!concilContaId) { alert('Selecione a Conta Bancária no filtro antes de consultar.'); return; } if (!concilDataIni || !concilDataFim) { alert('Informe a Data Inicial e a Data Final.'); return; } if (concilDataIni > concilDataFim) { alert('A Data Inicial não pode ser maior que a Data Final.'); return; } setConcilDataIniAplicada(concilDataIni); setConcilDataFimAplicada(concilDataFim); setConcilExibido(true); setOfxSelectedIds([]); setSysSelectedIds([]); } }, "Filtrar Período")),
 
             concilExibido && concilTab === "extrato" && h(React.Fragment, null,
               h('div', { style: { display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap' } },
