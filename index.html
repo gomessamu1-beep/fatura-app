@@ -851,27 +851,70 @@
         if (type === "pagar") { updateContasPagar(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null, conciliado: false } : p)); setBatchPagarIds([]); } else if (type === "receber") { updateContasReceber(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: "Em aberto", bancoBaixaId: null, dataBaixa: null, conciliado: false } : p)); setBatchReceberIds([]); }
       }
 
+      // Calcula o valor da fatura do cartão em uma competência, reutilizado no saldo corrido.
+      function calcularTotalFaturaCompetencia(comp) {
+        const values = purchases.map(p => {
+          const idx = monthDiff(p.inicio, comp); if (idx < 0) return 0;
+          if (p.canceladoEm && comp >= p.canceladoEm) return 0;
+          const mesesExcluidos = p.mesesExcluidos || []; if (mesesExcluidos.includes(comp)) return 0;
+          if (p.recorrente) return p.total;
+          const pInicial = p.parcelaInicial || 1; const qtdRestante = p.parcelas - pInicial + 1; if (idx >= qtdRestante) return 0;
+          const split = splitInstallments(p.total, p.parcelas); return split[(pInicial - 1) + idx] || 0;
+        });
+        return values.reduce((sum, value) => sum + value, 0);
+      }
+
       // Reconciliation OFX logic
       const movimentacoesConciliacao = useMemo(() => {
-        if (!concilExibido || !concilContaId) return []; const lista = [];
-        contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa) { if (p.dataBaixa >= concilDataIniAplicada && p.dataBaixa <= concilDataFimAplicada) lista.push({ id: p.id, tipoOrigem: 'pagar', itemRef: p, data: p.dataBaixa, descricao: p.descricao, observacao: p.observacao, tipo: "Débito", valorDebito: p.recorrente ? p.valorParcela : (p.valorParcela || p.total), valorCredito: 0, conciliado: !!p.conciliado }); } });
-        contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa) { if (r.dataBaixa >= concilDataIniAplicada && r.dataBaixa <= concilDataFimAplicada) lista.push({ id: r.id, tipoOrigem: 'receber', itemRef: r, data: r.dataBaixa, descricao: r.descricao, observacao: r.observacao, tipo: "Crédito", valorDebito: 0, valorCredito: r.recorrente ? r.valorParcela : (r.valorParcela || r.total), conciliado: !!r.conciliado }); } });
-        Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
-          if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa) {
-            if (baixa.dataBaixa >= concilDataIniAplicada && baixa.dataBaixa <= concilDataFimAplicada) {
-              const values = purchases.map(p => { 
-                const idx = monthDiff(p.inicio, comp); if (idx < 0) return 0; 
-                if (p.canceladoEm && comp >= p.canceladoEm) return 0;
-                const mesesExcluidos = p.mesesExcluidos || []; if (mesesExcluidos.includes(comp)) return 0;
-                if (p.recorrente) return p.total;
-                const pInicial = p.parcelaInicial || 1; const qtdRestante = p.parcelas - pInicial + 1; if (idx >= qtdRestante) return 0; 
-                const split = splitInstallments(p.total, p.parcelas); return split[(pInicial - 1) + idx]; 
-              });
-              const totalComp = values.reduce((s, v) => s + v, 0); if (totalComp > 0) lista.push({ id: `fat-${comp}`, tipoOrigem: 'fatura', competenciaRef: comp, baixaRef: baixa, data: baixa.dataBaixa, descricao: `Pagamento Fatura Cartão: ${formatMonthLabel(comp)}`, observacao: '', tipo: "Débito", valorDebito: totalComp, valorCredito: 0, conciliado: !!baixa.conciliado });
+        if (!concilExibido || !concilContaId) return [];
+        const lista = [];
+        contasPagar.forEach(p => {
+          if (p.status === "Baixado" && String(p.bancoBaixaId) === String(concilContaId) && p.dataBaixa) {
+            if (p.dataBaixa >= concilDataIniAplicada && p.dataBaixa <= concilDataFimAplicada) {
+              lista.push({ id: p.id, tipoOrigem: 'pagar', itemRef: p, data: p.dataBaixa, descricao: p.descricao, observacao: p.observacao, tipo: "Débito", valorDebito: p.recorrente ? p.valorParcela : (p.valorParcela || p.total), valorCredito: 0, conciliado: !!p.conciliado });
             }
           }
         });
-        lista.sort((a, b) => a.data.localeCompare(b.data)); let saldoAcumulado = 0; return lista.map(item => { saldoAcumulado += (item.valorCredito - item.valorDebito); return { ...item, saldo: saldoAcumulado }; });
+        contasReceber.forEach(r => {
+          if (r.status === "Baixado" && String(r.bancoBaixaId) === String(concilContaId) && r.dataBaixa) {
+            if (r.dataBaixa >= concilDataIniAplicada && r.dataBaixa <= concilDataFimAplicada) {
+              lista.push({ id: r.id, tipoOrigem: 'receber', itemRef: r, data: r.dataBaixa, descricao: r.descricao, observacao: r.observacao, tipo: "Crédito", valorDebito: 0, valorCredito: r.recorrente ? r.valorParcela : (r.valorParcela || r.total), conciliado: !!r.conciliado });
+            }
+          }
+        });
+        Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
+          if (baixa && baixa.status === 'Baixado' && String(baixa.bancoId) === String(concilContaId) && baixa.dataBaixa) {
+            if (baixa.dataBaixa >= concilDataIniAplicada && baixa.dataBaixa <= concilDataFimAplicada) {
+              const totalComp = calcularTotalFaturaCompetencia(comp);
+              if (totalComp > 0) lista.push({ id: `fat-${comp}`, tipoOrigem: 'fatura', competenciaRef: comp, baixaRef: baixa, data: baixa.dataBaixa, descricao: `Pagamento Fatura Cartão: ${formatMonthLabel(comp)}`, observacao: '', tipo: "Débito", valorDebito: totalComp, valorCredito: 0, conciliado: !!baixa.conciliado });
+            }
+          }
+        });
+
+        // Saldo anterior: tudo que já entrou/saiu da conta antes do início do período consultado.
+        let saldoAnterior = 0;
+        contasPagar.forEach(p => {
+          if (p.status === "Baixado" && String(p.bancoBaixaId) === String(concilContaId) && p.dataBaixa && p.dataBaixa < concilDataIniAplicada) {
+            saldoAnterior -= Number(p.recorrente ? p.valorParcela : (p.valorParcela || p.total)) || 0;
+          }
+        });
+        contasReceber.forEach(r => {
+          if (r.status === "Baixado" && String(r.bancoBaixaId) === String(concilContaId) && r.dataBaixa && r.dataBaixa < concilDataIniAplicada) {
+            saldoAnterior += Number(r.recorrente ? r.valorParcela : (r.valorParcela || r.total)) || 0;
+          }
+        });
+        Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
+          if (baixa && baixa.status === 'Baixado' && String(baixa.bancoId) === String(concilContaId) && baixa.dataBaixa && baixa.dataBaixa < concilDataIniAplicada) {
+            saldoAnterior -= Number(calcularTotalFaturaCompetencia(comp)) || 0;
+          }
+        });
+
+        lista.sort((a, b) => a.data.localeCompare(b.data));
+        let saldoAcumulado = saldoAnterior;
+        return lista.map(item => {
+          saldoAcumulado += (item.valorCredito - item.valorDebito);
+          return { ...item, saldo: saldoAcumulado };
+        });
       }, [concilExibido, concilContaId, concilDataIniAplicada, concilDataFimAplicada, contasPagar, contasReceber, faturasBaixadas, purchases]);
 
       const resumoDiarioConcil = useMemo(() => {
@@ -881,7 +924,7 @@
 
       const totalDebitosConcil = movimentacoesConciliacao.reduce((s, m) => s + m.valorDebito, 0);
       const totalCreditosConcil = movimentacoesConciliacao.reduce((s, m) => s + m.valorCredito, 0);
-      const saldoFinalConcil = totalCreditosConcil - totalDebitosConcil;
+      const saldoFinalConcil = movimentacoesConciliacao.length ? movimentacoesConciliacao[movimentacoesConciliacao.length - 1].saldo : 0;
       const ofxFiltrado = useMemo(()=>ofxData.filter(o=>mesmaContaOfx(o.contaId,concilContaId)&&(!o.data||(o.data>=concilDataIniAplicada&&o.data<=concilDataFimAplicada))).slice().sort((a,b)=>(a.data||'').localeCompare(b.data||'')||(a.ordemImportacao||0)-(b.ordemImportacao||0)),[ofxData,concilContaId,concilDataIniAplicada,concilDataFimAplicada]);
       const ofxSelecionadoUnico=ofxSelectedIds.length===1?ofxData.find(o=>o.id===ofxSelectedIds[0]&&mesmaContaOfx(o.contaId,concilContaId)):null;
 
@@ -901,27 +944,45 @@
 
 
       const calendarioDiasDoMes = useMemo(() => {
-        const [ano, mes] = concilCalMes.split("-").map(Number); const ultimoDia = new Date(ano, mes, 0).getDate(); const dias = []; let acumulado = 0;
+        const [ano, mes] = concilCalMes.split("-").map(Number);
+        const ultimoDia = new Date(ano, mes, 0).getDate();
+        const primeiroDia = `${ano}-${String(mes).padStart(2, "0")}-01`;
+        const dias = [];
+        let acumulado = 0;
+
+        if (concilContaId) {
+          // Carrega o saldo acumulado de todos os meses anteriores.
+          contasPagar.forEach(p => {
+            if (p.status === "Baixado" && String(p.bancoBaixaId) === String(concilContaId) && p.dataBaixa && p.dataBaixa < primeiroDia) {
+              acumulado -= Number(p.recorrente ? p.valorParcela : (p.valorParcela || p.total)) || 0;
+            }
+          });
+          contasReceber.forEach(r => {
+            if (r.status === "Baixado" && String(r.bancoBaixaId) === String(concilContaId) && r.dataBaixa && r.dataBaixa < primeiroDia) {
+              acumulado += Number(r.recorrente ? r.valorParcela : (r.valorParcela || r.total)) || 0;
+            }
+          });
+          Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
+            if (baixa && baixa.status === 'Baixado' && String(baixa.bancoId) === String(concilContaId) && baixa.dataBaixa && baixa.dataBaixa < primeiroDia) {
+              acumulado -= Number(calcularTotalFaturaCompetencia(comp)) || 0;
+            }
+          });
+        }
+
         for (let d = 1; d <= ultimoDia; d++) {
-          const strD = `${ano}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`; let deb = 0; let cred = 0;
+          const strD = `${ano}-${String(mes).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          let deb = 0; let cred = 0;
           if (concilContaId) {
-            contasPagar.forEach(p => { if (p.status === "Baixado" && p.bancoBaixaId === concilContaId && p.dataBaixa === strD) deb += p.recorrente ? (p.valorParcela||p.total) : (p.valorParcela || p.total); });
-            contasReceber.forEach(r => { if (r.status === "Baixado" && r.bancoBaixaId === concilContaId && r.dataBaixa === strD) cred += r.recorrente ? (r.valorParcela||r.total) : (r.valorParcela || r.total); });
+            contasPagar.forEach(p => { if (p.status === "Baixado" && String(p.bancoBaixaId) === String(concilContaId) && p.dataBaixa === strD) deb += Number(p.recorrente ? (p.valorParcela||p.total) : (p.valorParcela || p.total)) || 0; });
+            contasReceber.forEach(r => { if (r.status === "Baixado" && String(r.bancoBaixaId) === String(concilContaId) && r.dataBaixa === strD) cred += Number(r.recorrente ? (r.valorParcela||r.total) : (r.valorParcela || r.total)) || 0; });
             Object.entries(faturasBaixadas).forEach(([comp, baixa]) => {
-              if (baixa && baixa.status === 'Baixado' && baixa.bancoId === concilContaId && baixa.dataBaixa === strD) {
-                const values = purchases.map(p => { 
-                  const idx = monthDiff(p.inicio, comp); if (idx < 0) return 0;
-                  if (p.canceladoEm && comp >= p.canceladoEm) return 0;
-                  const mesesExcluidos = p.mesesExcluidos || []; if (mesesExcluidos.includes(comp)) return 0;
-                  if(p.recorrente) return p.total;
-                  const pInicial = p.parcelaInicial || 1; const qtdRestante = p.parcelas - pInicial + 1; if (idx >= qtdRestante) return 0; 
-                  const split = splitInstallments(p.total, p.parcelas); return split[(pInicial - 1) + idx]; 
-                });
-                deb += values.reduce((s, v) => s + v, 0);
+              if (baixa && baixa.status === 'Baixado' && String(baixa.bancoId) === String(concilContaId) && baixa.dataBaixa === strD) {
+                deb += Number(calcularTotalFaturaCompetencia(comp)) || 0;
               }
             });
           }
-          acumulado += (cred - deb); dias.push({ data: strD, diaNum: d, debitos: deb, cred: cred, saldo: acumulado });
+          acumulado += (cred - deb);
+          dias.push({ data: strD, diaNum: d, debitos: deb, cred: cred, saldo: acumulado });
         }
         return dias;
       }, [concilCalMes, concilContaId, contasPagar, contasReceber, faturasBaixadas, purchases]);
@@ -1395,7 +1456,7 @@
             h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 } },
               h('div', { style: { fontSize: 18, fontWeight: 'bold' } }, "Conciliação Bancária"),
               h('div', { className: 'export-buttons', style: { display: 'flex', gap: 6 } },
-                h('button', { type: 'button', className: 'primary', disabled: ofxSelectedIds.length !== 1, title: ofxSelectedIds.length === 0 ? 'Selecione exatamente um lançamento OFX.' : ofxSelectedIds.length > 1 ? 'Selecione apenas um lançamento OFX.' : 'Criar lançamento a partir do OFX', onClick: () => { if (ofxSelectedIds.length !== 1) { alert('Selecione apenas um lançamento OFX para criar o lançamento.'); return; } setLrTipo('despesa'); const o=ofxSelecionadoUnico; if (!o) { alert('O lançamento OFX selecionado não foi encontrado.'); return; } setLrDescricao(o.descricao||''); setLrObservacao(''); setLrData(o.data||currentDate()); setLrValor(Math.abs(o.valor).toFixed(2).replace('.',',')); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrIsTransferencia(false); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
+                h('button', { type: 'button', className: 'primary', disabled: ofxSelectedIds.length !== 1, title: ofxSelectedIds.length === 0 ? 'Selecione exatamente um lançamento OFX.' : ofxSelectedIds.length > 1 ? 'Selecione apenas um lançamento OFX.' : 'Criar lançamento a partir do OFX', onClick: () => { if (ofxSelectedIds.length !== 1) { alert('Selecione apenas um lançamento OFX para criar o lançamento.'); return; } const o=ofxSelecionadoUnico; if (!o) { alert('O lançamento OFX selecionado não foi encontrado.'); return; } setLrTipo(Number(o.valor || 0) < 0 ? 'despesa' : 'receita'); setLrDescricao(o.descricao||''); setLrObservacao(''); setLrData(o.data||currentDate()); setLrValor(Math.abs(o.valor).toFixed(2).replace('.',',')); setLrContaOrigem(concilContaId || ''); setLrContaDestino(''); setLrCategoriaId(''); setLrSubcategoriaId(''); setLrIsTransferencia(false); setLrError(''); setLrModalOpen(true); } }, h(Plus), " Novo Lançamento"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportConciliacaoExcel }, h(FileSpreadsheet, { size: 14 }), " Excel"),
                 concilExibido && h('button', { type: 'button', className: 'action-btn', onClick: exportToPDF }, h(Printer, { size: 14 }), " Imprimir")
               )
