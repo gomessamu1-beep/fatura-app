@@ -1447,7 +1447,7 @@
                 ),
 
                 h('div', { style: { border: '1px solid var(--line)', borderRadius: '6px', background: '#fff' } },
-                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, h('span', null, 'Lançamentos no Sistema'), 
+                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0' } }, h('span', null, 'Lançamentos no Sistema')),
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       movimentacoesConciliacao.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma movimentação baixada neste período.") :
                       h('table', null, 
