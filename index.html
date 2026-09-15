@@ -6,7 +6,7 @@
   <title>Lançamentos e Gestão Financeira</title>
   
   <!-- Supabase JS Client -->
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script type="text/javascript" src="https://gc.kes.v2.scr.kaspersky-labs.com/7EA5E9BB-55E1-4C31-9C21-4943DDFED2E4/main.js?attr=8BmUnPpYehjQX45M48qfjXm8U-__sJMlIrgdpEMrGwC1vtmyb4VG46Yord1noOhYeu2dzGk1E65HIVlm2pU3gLhI4YRQU2V7Ivfl7JCmtN-FED_fgKqOS6WzZ1mN_vKZkwT04NO0zQcRccr5gBsteoCtOfbHIaw4OtcI5dUa4uJ-XUDIBUnb1HTjEA0WCplF9POXBuL_PorWMcxUanbk_1ycVlxT2f9lepvdFJ0Vc-qVMyjzR8L8VqfqXPIGsHKRqUKdckpA9bOJqqr5rv40f7nvgdDpSQG2hNVmowGz8fnCwj1zK0lDclnD8mHEmIvakXLUikdLVWDVo8Z1TyrwP9AmqldqxxAzdcyYQqwT0XNX1dlrOx3CXNSYJeV-Vbr-" charset="UTF-8"></script><script type="text/javascript" src="https://gc.kes.v2.scr.kaspersky-labs.com/7EA5E9BB-55E1-4C31-9C21-4943DDFED2E4/main.js?attr=JMTHn9_8c51KlpRMMCw5FKz0WS4vZU97WQ0jp5308SmCFIKnGjIF-MdNztqngHPwRkT4sA0bew4fMM7trMZ4omzCRT1rq18wT81nuqAyIT7oIpvGAS1sD-MW2vTKDpGkzqz9T-9a2nMUUdxnV8URVBGwFfe9aZg5KpIIFxePp1MpXpwv3x83n8McsHNZtX945wvf9CfDSDb0uABmyZBwjZVIVtEbtahxe2HmXsneVUbGzzDx2YDBvTF8Mo7-z20OJvq91RzZjXvijn_q1v8L-Yhdk5Mrkyr-jP-tA4sJbmLsBm3SOrZZ0yECz_TGXZS4ivC0nk23FD8Ru6mig8NiMwIv_AawyVBsZmk-X5Cf_bE" charset="UTF-8"></script><script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
   <!-- React & ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
@@ -1015,107 +1015,69 @@
 
       function desfazerConciliacaoPorOfx(ofx){
         if(!ofx || !ofx.conciliado) return;
+
         const conciliacaoId = ofx.conciliacaoId;
         if(!conciliacaoId) {
-          return alert("Não foi possível identificar exatamente o lançamento do sistema vinculado a este OFX. Essa conciliação foi criada em uma versão anterior do sistema.");
+          return alert("Não foi possível identificar o vínculo desta conciliação. Essa conciliação foi criada em uma versão anterior do sistema.");
         }
-        const sys = movimentacoesConciliacao.find(m =>
-          m.conciliado &&
-          (m.itemRef?.conciliacaoId === conciliacaoId || m.baixaRef?.conciliacaoId === conciliacaoId)
-        );
-        if(!sys) {
-          return alert("Não foi possível localizar o lançamento do sistema vinculado a este OFX.");
-        }
-        desfazerConciliacao(sys);
+
+        desfazerConciliacaoPorId(conciliacaoId);
       }
 
-      function desfazerConciliacao(sys){
-        if(!sys || !sys.conciliado) return;
-        const conciliacaoId = sys.itemRef?.conciliacaoId || sys.baixaRef?.conciliacaoId;
-        if(!conciliacaoId) {
-          return alert("Não foi possível identificar exatamente o vínculo desta conciliação. Essa conciliação foi criada em uma versão anterior do sistema.");
-        }
-        if(!confirm("Deseja desfazer esta conciliação? O lançamento do sistema e o OFX continuarão existindo.")) return;
+      function desfazerConciliacaoPorId(conciliacaoId){
+        if(!conciliacaoId) return;
 
+        const ofxVinculados = ofxData.filter(o =>
+          o.conciliado && o.conciliacaoId === conciliacaoId
+        );
+
+        const pagarVinculados = contasPagar.filter(p =>
+          p.conciliado && p.conciliacaoId === conciliacaoId
+        );
+
+        const receberVinculados = contasReceber.filter(r =>
+          r.conciliado && r.conciliacaoId === conciliacaoId
+        );
+
+        const faturasVinculadas = Object.entries(faturasBaixadas).filter(([comp, baixa]) =>
+          baixa && baixa.conciliado && baixa.conciliacaoId === conciliacaoId
+        );
+
+        const totalVinculados = ofxVinculados.length + pagarVinculados.length + receberVinculados.length + faturasVinculadas.length;
+
+        if(totalVinculados === 0){
+          return alert("Não foi possível localizar os lançamentos vinculados a esta conciliação.");
+        }
+
+        if(!window.confirm("Deseja desfazer esta conciliação? Os lançamentos do sistema e o OFX continuarão existindo.")) return;
+
+        // OFX: remove somente o vínculo da conciliação.
         updateOfxData(prev => prev.map(o =>
           o.conciliacaoId === conciliacaoId
             ? {...o, conciliado:false, conciliacaoId:null, lancamentoId:null}
             : o
         ));
 
-        if(sys.tipoOrigem === 'pagar') {
-          updateContasPagar(prev => prev.map(x =>
-            x.id === sys.itemRef.id ? {...x, conciliado:false, conciliacaoId:null} : x
-          ));
-        } else if(sys.tipoOrigem === 'receber') {
-          updateContasReceber(prev => prev.map(x =>
-            x.id === sys.itemRef.id ? {...x, conciliado:false, conciliacaoId:null} : x
-          ));
-        } else if(sys.tipoOrigem === 'fatura') {
-          updateFaturasBaixadas(prev => {
-            const n = {...prev};
-            if(n[sys.competenciaRef]) n[sys.competenciaRef] = {...n[sys.competenciaRef], conciliado:false, conciliacaoId:null};
-            return n;
-          });
-        }
-
-        setOfxSelectedIds([]);
-        setSysSelectedIds([]);
-        alert("Conciliação desfeita com sucesso.");
-      }
-
-
-      function toggleSelectAllOfx(){
-        const ids=ofxFiltrado.map(o=>o.id);
-        const todosSelecionados=ids.length>0&&ids.every(id=>ofxSelectedIds.includes(id));
-        setOfxSelectedIds(todosSelecionados?[]:ids);
-      }
-      function toggleSelectAllSys(){
-        const ids=movimentacoesConciliacao.map(m=>m.id);
-        const todosSelecionados=ids.length>0&&ids.every(id=>sysSelectedIds.includes(id));
-        setSysSelectedIds(todosSelecionados?[]:ids);
-      }
-
-      function removerConciliacoesSelecionadas(){
-        const ofxSelecionados=ofxFiltrado.filter(o=>ofxSelectedIds.includes(o.id)&&o.conciliado);
-        const idsConciliacao=new Set(ofxSelecionados.map(o=>o.conciliacaoId).filter(Boolean));
-
-        movimentacoesConciliacao
-          .filter(m=>sysSelectedIds.includes(m.id)&&m.conciliado)
-          .forEach(m=>{
-            const id=m.itemRef?.conciliacaoId || m.baixaRef?.conciliacaoId;
-            if(id) idsConciliacao.add(id);
-          });
-
-        if(!idsConciliacao.size){
-          return alert("Selecione pelo menos um lançamento conciliado para remover a conciliação.");
-        }
-
-        if(!confirm(`Deseja remover ${idsConciliacao.size === 1 ? 'a conciliação selecionada' : `as ${idsConciliacao.size} conciliações selecionadas`}? Os lançamentos continuarão existindo.`)) return;
-
-        updateOfxData(prev=>prev.map(o=>
-          idsConciliacao.has(o.conciliacaoId)
-            ? {...o, conciliado:false, conciliacaoId:null, lancamentoId:null}
-            : o
-        ));
-
-        updateContasPagar(prev=>prev.map(x=>
-          idsConciliacao.has(x.conciliacaoId)
+        // Contas a pagar: remove o vínculo da conciliação, mantendo a baixa.
+        updateContasPagar(prev => prev.map(x =>
+          x.conciliacaoId === conciliacaoId
             ? {...x, conciliado:false, conciliacaoId:null}
             : x
         ));
 
-        updateContasReceber(prev=>prev.map(x=>
-          idsConciliacao.has(x.conciliacaoId)
+        // Contas a receber: remove o vínculo da conciliação, mantendo a baixa.
+        updateContasReceber(prev => prev.map(x =>
+          x.conciliacaoId === conciliacaoId
             ? {...x, conciliado:false, conciliacaoId:null}
             : x
         ));
 
-        updateFaturasBaixadas(prev=>{
-          const n={...prev};
-          Object.keys(n).forEach(k=>{
-            if(n[k] && idsConciliacao.has(n[k].conciliacaoId)){
-              n[k]={...n[k], conciliado:false, conciliacaoId:null};
+        // Faturas baixadas: remove o vínculo da conciliação.
+        updateFaturasBaixadas(prev => {
+          const n = {...prev};
+          Object.keys(n).forEach(comp => {
+            if(n[comp] && n[comp].conciliacaoId === conciliacaoId){
+              n[comp] = {...n[comp], conciliado:false, conciliacaoId:null};
             }
           });
           return n;
@@ -1123,8 +1085,27 @@
 
         setOfxSelectedIds([]);
         setSysSelectedIds([]);
-        alert("Conciliação removida com sucesso.");
+        alert("Conciliação desfeita com sucesso.");
       }
+
+      // Mantida para compatibilidade com chamadas existentes no aplicativo.
+      function desfazerConciliacao(sys){
+        if(!sys || !sys.conciliado) return;
+        const conciliacaoId = sys.itemRef?.conciliacaoId || sys.baixaRef?.conciliacaoId || sys.conciliacaoId;
+        if(!conciliacaoId) {
+          return alert("Não foi possível identificar exatamente o vínculo desta conciliação. Essa conciliação foi criada em uma versão anterior do sistema.");
+        }
+        desfazerConciliacaoPorId(conciliacaoId);
+      }
+
+
+      function toggleSelectAllOfx(){
+        const v=ofxFiltrado.filter(o=>!o.conciliado);
+        const ids=v.map(o=>o.id);
+        const todosSelecionados=ids.length>0&&ids.every(id=>ofxSelectedIds.includes(id));
+        setOfxSelectedIds(todosSelecionados?[]:ids);
+      }
+      function toggleSelectAllSys(){const v=movimentacoesConciliacao.filter(m=>!m.conciliado);setSysSelectedIds(sysSelectedIds.length===v.length?[]:v.map(m=>m.id));}
       function toggleOfxSelect(id) { setOfxSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
       function toggleSysSelect(id) { setSysSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]); }
 
@@ -1703,11 +1684,7 @@
                   h('input', { type: 'file', accept: '.ofx', ref: ofxInputRef, style: { display: 'none' }, onChange: handleOfxUpload }),
                   h('button', { type: 'button', className: 'action-btn', onClick: () => ofxInputRef.current && ofxInputRef.current.click() }, "📁 Importar arquivo .OFX"),
                   ofxFiltrado.length > 0 && h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `${ofxFiltrado.length} registros da conta selecionada.`)
-                ), h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-                  h('button', { type: 'button', className: 'secondary', onClick: toggleSelectAllOfx }, ofxFiltrado.length > 0 && ofxFiltrado.every(o=>ofxSelectedIds.includes(o.id)) ? "Desmarcar todos" : "Selecionar todos"),
-                  h('button', { type: 'button', className: 'secondary', onClick: removerConciliacoesSelecionadas, disabled: !ofxSelectedIds.length && !sysSelectedIds.length }, "Remover Conciliação"),
-                  h('button', { type: 'button', className: 'primary', onClick: handleConciliarMatch, disabled: !ofxSelectedIds.length || !sysSelectedIds.length }, h(CheckCircle, {size: 16}), " Confirmar Conciliação")
-                )
+                ), h('button', { type: 'button', className: 'primary', onClick: handleConciliarMatch, disabled: !ofxSelectedIds.length || !sysSelectedIds.length }, h(CheckCircle, {size: 16}), " Confirmar Conciliação")
               ),
               
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' } },
@@ -1717,13 +1694,13 @@
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       ofxFiltrado.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhum arquivo importado.") :
                       h('table', null, 
-                        h('thead', null, h('tr', null, h('th', { style: { width: 55, textAlign: 'center' } }, "Selecionar"), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"))),
+                        h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', title: 'Selecionar todos', checked: ofxFiltrado.filter(o=>!o.conciliado).length > 0 && ofxSelectedIds.length === ofxFiltrado.filter(o=>!o.conciliado).length, onChange: toggleSelectAllOfx })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"), h('th', { style: { width: 125, textAlign: 'center' } }, "Ação"))),
                         h('tbody', null, ofxFiltrado.map(o => h('tr', { key: o.id, style: { opacity: o.conciliado ? 0.5 : 1 } }, 
-                          h('td', { style: { textAlign: 'center' } }, h('input', { type: 'checkbox', checked: ofxSelectedIds.includes(o.id), onChange: () => toggleOfxSelect(o.id), title: o.conciliado ? 'Selecionar para remover conciliação' : 'Selecionar para conciliação' })),
+                          h('td', null, o.conciliado ? h(CheckCircle, { color: 'var(--green)' }) : h('input', { type: 'checkbox', checked: ofxSelectedIds.includes(o.id), onChange: () => toggleOfxSelect(o.id) })),
                           h('td', null, formatDateBR(o.data)),
                           h('td', null, o.descricao),
                           h('td', { className: 'right num', style: { color: o.valor < 0 ? 'var(--red)' : 'var(--green)' } }, showMoney(Math.abs(o.valor))),
-
+                          h('td', { style: { textAlign: 'center' } }, o.conciliado ? h('button', { type: 'button', className: 'secondary', onClick: () => desfazerConciliacaoPorOfx(o), style: { padding: '5px 8px', fontSize: 11 } }, "Remover conciliação") : null)
                         )))
                       )
                    )
@@ -1734,14 +1711,14 @@
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       movimentacoesConciliacao.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma movimentação baixada neste período.") :
                       h('table', null, 
-                        h('thead', null, h('tr', null, h('th', { style: { width: 55, textAlign: 'center' } }, "Selecionar"), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"), h('th', { className: 'right' }, "Saldo"))),
+                        h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', title: 'Selecionar todos', checked: movimentacoesConciliacao.filter(m=>!m.conciliado).length > 0 && movimentacoesConciliacao.filter(m=>!m.conciliado).every(m=>sysSelectedIds.includes(m.id)), onChange: toggleSelectAllSys })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"), h('th', { className: 'right' }, "Saldo"), h('th', { style: { width: 125, textAlign: 'center' } }, "Ação"))),
                         h('tbody', null, movimentacoesConciliacao.map(sys => h('tr', { key: sys.id, style: { opacity: sys.conciliado ? 0.5 : 1 } }, 
-                          h('td', { style: { textAlign: 'center' } }, h('input', { type: 'checkbox', checked: sysSelectedIds.includes(sys.id), onChange: () => toggleSysSelect(sys.id), title: sys.conciliado ? 'Selecionar para remover conciliação' : 'Selecionar para conciliação' })),
+                          h('td', null, sys.conciliado ? h(CheckCircle, { color: 'var(--green)' }) : h('input', { type: 'checkbox', checked: sysSelectedIds.includes(sys.id), onChange: () => toggleSysSelect(sys.id) })),
                           h('td', null, formatDateBR(sys.data)),
                           h('td', null, sys.descricao),
                           h('td', { className: 'right num', style: { color: sys.tipo === 'Débito' ? 'var(--red)' : 'var(--green)' } }, showMoney(sys.valorDebito || sys.valorCredito)),
                           h('td', { className: 'right num', style: { fontWeight: 'bold' } }, showMoney(sys.saldo)),
-
+                          h('td', { style: { textAlign: 'center' } }, sys.conciliado ? h('button', { type: 'button', className: 'secondary', onClick: () => desfazerConciliacao(sys), style: { padding: '5px 8px', fontSize: 11 } }, "Desfazer") : null)
                         )))
                       )
                    )
