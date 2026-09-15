@@ -1424,7 +1424,7 @@
                   h('button', { type: 'button', className: 'action-btn', onClick: () => ofxInputRef.current && ofxInputRef.current.click() }, "📁 Importar arquivo .OFX"),
                   ofxFiltrado.length > 0 && h('span', { style: { fontSize: 13, color: 'var(--ink-soft)' } }, `${ofxFiltrado.length} registros da conta selecionada.`)
                 ),
-                h('button', { type: 'button', className: 'action-btn', onClick: toggleSelectAllOfx }, ofxSelectedIds.length === ofxFiltrado.filter(o=>!o.conciliado).length && ofxFiltrado.filter(o=>!o.conciliado).length>0 ? "☐ Desmarcar todos" : "☑ Selecionar todos"), h('button', { type: 'button', className: 'danger', onClick: excluirOfxSelecionados, disabled: !ofxSelectedIds.length }, h(Trash2,{size:14}), " Excluir selecionados"), h('button', { type: 'button', className: 'danger', onClick: excluirTodosOfxConta, disabled: !ofxFiltrado.length }, "Excluir OFX da conta"), h('button', { type: 'button', className: 'primary', onClick: handleConciliarMatch, disabled: !ofxSelectedIds.length || !sysSelectedIds.length }, h(CheckCircle, {size: 16}), " Confirmar Conciliação")
+                h('button', { type: 'button', className: 'danger', onClick: excluirOfxSelecionados, disabled: !ofxSelectedIds.length }, h(Trash2,{size:14}), " Excluir selecionados"), h('button', { type: 'button', className: 'danger', onClick: excluirTodosOfxConta, disabled: !ofxFiltrado.length }, "Excluir OFX da conta"), h('button', { type: 'button', className: 'primary', onClick: handleConciliarMatch, disabled: !ofxSelectedIds.length || !sysSelectedIds.length }, h(CheckCircle, {size: 16}), " Confirmar Conciliação")
               ),
               
               h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' } },
@@ -1434,7 +1434,7 @@
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       ofxFiltrado.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhum arquivo importado.") :
                       h('table', null, 
-                        h('thead', null, h('tr', null, h('th', { style: { width: 30 } }), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"))),
+                        h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', title: 'Selecionar todos', checked: ofxFiltrado.filter(o=>!o.conciliado).length > 0 && ofxSelectedIds.length === ofxFiltrado.filter(o=>!o.conciliado).length, onChange: toggleSelectAllOfx })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"))),
                         h('tbody', null, ofxFiltrado.map(o => h('tr', { key: o.id, style: { opacity: o.conciliado ? 0.5 : 1 } }, 
                           h('td', null, o.conciliado ? h(CheckCircle, { color: 'var(--green)' }) : h('input', { type: 'checkbox', checked: ofxSelectedIds.includes(o.id), onChange: () => toggleOfxSelect(o.id) })),
                           h('td', null, formatDateBR(o.data)),
@@ -1446,11 +1446,11 @@
                 ),
 
                 h('div', { style: { border: '1px solid var(--line)', borderRadius: '6px', background: '#fff' } },
-                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, h('span', null, 'Lançamentos no Sistema'), h('button', { type: 'button', className: 'action-btn', onClick: toggleSelectAllSys }, sysSelectedIds.length === movimentacoesConciliacao.filter(m=>!m.conciliado).length && movimentacoesConciliacao.filter(m=>!m.conciliado).length > 0 ? '☐ Desmarcar todos' : '☑ Selecionar todos')),
+                   h('div', { style: { padding: '12px', borderBottom: '1px solid var(--line)', fontWeight: 'bold', background: 'var(--paper)', borderRadius: '6px 6px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, h('span', null, 'Lançamentos no Sistema'), 
                    h('div', { style: { maxHeight: '600px', overflowY: 'auto', padding: '0 8px' } },
                       movimentacoesConciliacao.length === 0 ? h('div', { style: { padding: '30px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 } }, "Nenhuma movimentação baixada neste período.") :
                       h('table', null, 
-                        h('thead', null, h('tr', null, h('th', { style: { width: 30 } }), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"))),
+                        h('thead', null, h('tr', null, h('th', { style: { width: 30, textAlign: 'center' } }, h('input', { type: 'checkbox', title: 'Selecionar todos', checked: movimentacoesConciliacao.filter(m=>!m.conciliado).length > 0 && sysSelectedIds.length === movimentacoesConciliacao.filter(m=>!m.conciliado).length, onChange: toggleSelectAllSys })), h('th', null, "Data"), h('th', null, "Descrição"), h('th', { className: 'right' }, "Valor"))),
                         h('tbody', null, movimentacoesConciliacao.map(sys => h('tr', { key: sys.id, style: { opacity: sys.conciliado ? 0.5 : 1 } }, 
                           h('td', null, sys.conciliado ? h(CheckCircle, { color: 'var(--green)' }) : h('input', { type: 'checkbox', checked: sysSelectedIds.includes(sys.id), onChange: () => toggleSysSelect(sys.id) })),
                           h('td', null, formatDateBR(sys.data)),
